@@ -59,13 +59,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // titan mode dimensions
 #define TITAN_WIDTH				30
 #define TITAN_MINS_Z			-24
-#define TITAN_HEIGHT			80
-#define TITAN_VIEWHEIGHT		56
-#define TITAN_CROUCH_HEIGHT		48
-#define TITAN_CROUCH_VIEWHEIGHT	40
+#define TITAN_HEIGHT			200
+#define TITAN_VIEWHEIGHT		150
+#define TITAN_CROUCH_HEIGHT		120
+#define TITAN_CROUCH_VIEWHEIGHT	100
 #define TITAN_SPEED_SCALE		0.6f
 #define TITAN_HEALTH			500
 #define MAX_TITAN_PARTS			7
+#define TITAN_RENDER_OFFSET		168		// lift player model this many units (3x player height)
 
 //
 // config strings are a general means of communicating variable length strings
@@ -279,6 +280,7 @@ typedef enum {
 #define	EF_AWARD_ASSIST		0x00020000		// draw a assist sprite
 #define EF_AWARD_DENIED		0x00040000		// denied
 #define EF_TEAMVOTED		0x00080000		// already cast a team vote
+#define EF_TITAN			0x00100000		// player is in titan mode (visible to all clients)
 
 // NOTE: may not have more than 16
 typedef enum {

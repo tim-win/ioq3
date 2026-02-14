@@ -2323,6 +2323,11 @@ void CG_Player( centity_t *cent ) {
 
 	VectorCopy( cent->lerpOrigin, legs.origin );
 
+	// titan mode: lift the rendered model up
+	if ( cent->currentState.eFlags & EF_TITAN ) {
+		legs.origin[2] += TITAN_RENDER_OFFSET;
+	}
+
 	VectorCopy( cent->lerpOrigin, legs.lightingOrigin );
 	legs.shadowPlane = shadowPlane;
 	legs.renderfx = renderfx;
