@@ -1703,6 +1703,35 @@ void Cmd_Stats_f( gentity_t *ent ) {
 
 /*
 =================
+Cmd_Titan_f
+
+Toggle titan mode for the player
+=================
+*/
+void Cmd_Titan_f( gentity_t *ent ) {
+	if ( ent->client->ps.stats[STAT_HEALTH] <= 0 ) {
+		return;
+	}
+
+	ent->client->titanMode = !ent->client->titanMode;
+
+	if ( ent->client->titanMode ) {
+		ent->health = TITAN_HEALTH;
+		ent->client->ps.stats[STAT_HEALTH] = TITAN_HEALTH;
+		ent->client->ps.stats[STAT_MAX_HEALTH] = TITAN_HEALTH;
+		trap_SendServerCommand( ent-g_entities, "print \"TITAN MODE ACTIVATED\n\"" );
+	} else {
+		ent->client->ps.stats[STAT_MAX_HEALTH] = ent->client->pers.maxHealth;
+		if ( ent->health > ent->client->ps.stats[STAT_MAX_HEALTH] ) {
+			ent->health = ent->client->ps.stats[STAT_MAX_HEALTH];
+			ent->client->ps.stats[STAT_HEALTH] = ent->health;
+		}
+		trap_SendServerCommand( ent-g_entities, "print \"TITAN MODE DEACTIVATED\n\"" );
+	}
+}
+
+/*
+=================
 ClientCommand
 =================
 */
@@ -1789,6 +1818,8 @@ void ClientCommand( int clientNum ) {
 		Cmd_Noclip_f (ent);
 	else if (Q_stricmp (cmd, "kill") == 0)
 		Cmd_Kill_f (ent);
+	else if (Q_stricmp (cmd, "titan") == 0)
+		Cmd_Titan_f (ent);
 	else if (Q_stricmp (cmd, "teamtask") == 0)
 		Cmd_TeamTask_f (ent);
 	else if (Q_stricmp (cmd, "levelshot") == 0)

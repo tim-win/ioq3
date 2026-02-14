@@ -1159,8 +1159,13 @@ void ClientSpawn(gentity_t *ent) {
 	ent->watertype = 0;
 	ent->flags = 0;
 	
-	VectorCopy (playerMins, ent->r.mins);
-	VectorCopy (playerMaxs, ent->r.maxs);
+	if ( client->titanMode ) {
+		VectorSet( ent->r.mins, -TITAN_WIDTH, -TITAN_WIDTH, TITAN_MINS_Z );
+		VectorSet( ent->r.maxs, TITAN_WIDTH, TITAN_WIDTH, TITAN_HEIGHT );
+	} else {
+		VectorCopy (playerMins, ent->r.mins);
+		VectorCopy (playerMaxs, ent->r.maxs);
+	}
 
 	client->ps.clientNum = index;
 
@@ -1176,7 +1181,12 @@ void ClientSpawn(gentity_t *ent) {
 	client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
 
 	// health will count down towards max_health
-	ent->health = client->ps.stats[STAT_HEALTH] = client->ps.stats[STAT_MAX_HEALTH] + 25;
+	if ( client->titanMode ) {
+		client->ps.stats[STAT_MAX_HEALTH] = TITAN_HEALTH;
+		ent->health = client->ps.stats[STAT_HEALTH] = TITAN_HEALTH;
+	} else {
+		ent->health = client->ps.stats[STAT_HEALTH] = client->ps.stats[STAT_MAX_HEALTH] + 25;
+	}
 
 	G_SetOrigin( ent, spawn_origin );
 	VectorCopy( spawn_origin, client->ps.origin );

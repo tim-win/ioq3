@@ -317,6 +317,8 @@ struct gclient_s {
 #endif
 
 	char		*areabits;
+
+	qboolean	titanMode;		// qtrue when player is a titan
 };
 
 

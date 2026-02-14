@@ -852,6 +852,14 @@ void ClientThink_real( gentity_t *ent ) {
 		client->ps.speed *= 1.3;
 	}
 
+	// apply titan mode
+	if ( client->titanMode ) {
+		client->ps.speed *= TITAN_SPEED_SCALE;
+		client->ps.pm_flags |= PMF_TITAN;
+	} else {
+		client->ps.pm_flags &= ~PMF_TITAN;
+	}
+
 	// Let go of the hook if we aren't firing
 	if ( client->ps.weapon == WP_GRAPPLING_HOOK &&
 		client->hook && !( ucmd->buttons & BUTTON_ATTACK ) ) {

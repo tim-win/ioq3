@@ -56,6 +56,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	DEAD_VIEWHEIGHT		-16
 #define INVUL_RADIUS		42
 
+// titan mode dimensions
+#define TITAN_WIDTH				30
+#define TITAN_MINS_Z			-24
+#define TITAN_HEIGHT			80
+#define TITAN_VIEWHEIGHT		56
+#define TITAN_CROUCH_HEIGHT		48
+#define TITAN_CROUCH_VIEWHEIGHT	40
+#define TITAN_SPEED_SCALE		0.6f
+#define TITAN_HEALTH			500
+
 //
 // config strings are a general means of communicating variable length strings
 // from the server to all connected clients.
@@ -158,6 +168,7 @@ typedef enum {
 #define PMF_FOLLOW			4096	// spectate following another player
 #define PMF_SCOREBOARD		8192	// spectate as a scoreboard
 #define PMF_INVULEXPAND		16384	// invulnerability sphere set to full size
+#define PMF_TITAN			32768	// player is in titan mode
 
 #define	PMF_ALL_TIMES	(PMF_TIME_WATERJUMP|PMF_TIME_LAND|PMF_TIME_KNOCKBACK)
 

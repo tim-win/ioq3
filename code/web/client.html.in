@@ -24,13 +24,14 @@ if (window.location.protocol === 'file:') throw new Error(`Unfortunately browser
 
 // First set up the command line arguments and the Emscripten filesystem.
 const urlParams = new URLSearchParams(window.location.search);
-const com_basegame = urlParams.get('com_basegame') || BASEGAME;
+const com_basegame = urlParams.get('com_basegame') || 'demoq3';
 const fs_basegame = urlParams.get('fs_basegame') || '';
 const fs_game = urlParams.get('fs_game') || '';
 let generatedArguments = `
     +set sv_pure 0
-    +set net_enabled 0
+    +set net_enabled 1
     +set r_mode -2
+    +set fs_homepath /q3home
     +set com_basegame "${com_basegame}"
     +set fs_basegame "${fs_basegame}"
     +set fs_game "${fs_game}"
@@ -44,14 +45,28 @@ const dataURL = new URL(dataPath, location.origin + location.pathname);
 const configPromise = EMSCRIPTEN_PRELOAD_FILE ? Promise.resolve({[BASEGAME]: {files: []}})
   : fetch(configFilename).then(r => r.ok ? r.json() : { /* empty config */ });
 
+let gameModule = null;
+
 const ioquake3 = (await import(enginePath + `@CLIENT_BINARY@.js`)).default;
 ioquake3({
     canvas: canvas,
+    websocket: { url: `ws://${window.location.hostname}:27961/` },
     arguments: generatedArguments.trim().split(/\s+/),
     locateFile: (file) => enginePath + file,
     preRun: [async (module) => {
+        gameModule = module;
         module.addRunDependency('setup-ioq3-filesystem');
         try {
+            // Mount persistent storage backed by IndexedDB
+            module.FS.mkdir('/q3home');
+            module.FS.mount(module.FS.filesystems.IDBFS, {}, '/q3home');
+            await new Promise((resolve) => {
+                module.FS.syncfs(true, (err) => {
+                    if (err) console.warn('IDBFS: failed to load saved data:', err);
+                    resolve();
+                });
+            });
+
             const config = await configPromise;
             const gamedirs = [com_basegame,fs_basegame,fs_game];
             for (let g = 0; g < gamedirs.length; g++) {
@@ -81,4 +96,15 @@ ioquake3({
         }
     }],
 });
+
+// Sync config to IndexedDB on page unload and periodically
+function syncToStorage() {
+    if (gameModule) {
+        gameModule.FS.syncfs(false, (err) => {
+            if (err) console.warn('IDBFS: failed to save:', err);
+        });
+    }
+}
+window.addEventListener('beforeunload', syncToStorage);
+setInterval(syncToStorage, 30000);
 </script>

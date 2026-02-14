@@ -27,6 +27,9 @@ list(APPEND CLIENT_LINK_OPTIONS
     -sEXIT_RUNTIME=1
     -sEXPORT_ES6
     -sEXPORT_NAME=${CLIENT_NAME}
+    -sINCOMING_MODULE_JS_API=canvas,arguments,locateFile,preRun,websocket
+    -sWEBSOCKET_URL=ws://
+    -lidbfs.js
 )
 
 option(EMSCRIPTEN_PRELOAD_FILE "Preload game files into .data file" OFF)

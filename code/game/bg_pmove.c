@@ -360,6 +360,10 @@ static qboolean PM_CheckJump( void ) {
 		return qfalse;		// don't allow jump until all buttons are up
 	}
 
+	if ( pm->ps->pm_flags & PMF_TITAN ) {
+		return qfalse;		// titans cannot jump
+	}
+
 	if ( pm->cmd.upmove < 10 ) {
 		// not holding jump
 		return qfalse;
@@ -1264,6 +1268,40 @@ static void PM_CheckDuck (void)
 		return;
 	}
 	pm->ps->pm_flags &= ~PMF_INVULEXPAND;
+
+	if ( pm->ps->pm_flags & PMF_TITAN ) {
+		pm->mins[0] = -TITAN_WIDTH;
+		pm->mins[1] = -TITAN_WIDTH;
+		pm->maxs[0] = TITAN_WIDTH;
+		pm->maxs[1] = TITAN_WIDTH;
+		pm->mins[2] = TITAN_MINS_Z;
+
+		if (pm->ps->pm_type == PM_DEAD) {
+			pm->maxs[2] = DEAD_HEIGHT;
+			pm->ps->viewheight = DEAD_VIEWHEIGHT;
+			return;
+		}
+
+		if (pm->cmd.upmove < 0) {
+			pm->ps->pm_flags |= PMF_DUCKED;
+		} else {
+			if (pm->ps->pm_flags & PMF_DUCKED) {
+				pm->maxs[2] = TITAN_HEIGHT;
+				pm->trace (&trace, pm->ps->origin, pm->mins, pm->maxs, pm->ps->origin, pm->ps->clientNum, pm->tracemask );
+				if (!trace.allsolid)
+					pm->ps->pm_flags &= ~PMF_DUCKED;
+			}
+		}
+
+		if (pm->ps->pm_flags & PMF_DUCKED) {
+			pm->maxs[2] = TITAN_CROUCH_HEIGHT;
+			pm->ps->viewheight = TITAN_CROUCH_VIEWHEIGHT;
+		} else {
+			pm->maxs[2] = TITAN_HEIGHT;
+			pm->ps->viewheight = TITAN_VIEWHEIGHT;
+		}
+		return;
+	}
 
 	pm->mins[0] = -PLAYER_WIDTH;
 	pm->mins[1] = -PLAYER_WIDTH;

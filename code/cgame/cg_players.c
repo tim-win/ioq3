@@ -1114,7 +1114,9 @@ static void CG_SetLerpFrameAnimation( clientInfo_t *ci, lerpFrame_t *lf, int new
 	newAnimation &= ~ANIM_TOGGLEBIT;
 
 	if ( newAnimation < 0 || newAnimation >= MAX_TOTALANIMATIONS ) {
-		CG_Error( "Bad animation number: %i", newAnimation );
+		CG_Printf( "^3Warning: Bad animation number: %i, clamping to LEGS_IDLE\n", newAnimation );
+		newAnimation = LEGS_IDLE;
+		lf->animationNumber = newAnimation;
 	}
 
 	anim = &ci->animations[ newAnimation ];
