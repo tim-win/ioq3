@@ -856,6 +856,7 @@ void ClientThink_real( gentity_t *ent ) {
 	if ( client->titanMode ) {
 		client->ps.speed *= TITAN_SPEED_SCALE;
 		client->ps.pm_flags |= PMF_TITAN;
+		G_UpdateTitanParts( ent );
 	} else {
 		client->ps.pm_flags &= ~PMF_TITAN;
 	}

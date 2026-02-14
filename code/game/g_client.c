@@ -1279,6 +1279,11 @@ void ClientDisconnect( int clientNum ) {
 		return;
 	}
 
+	// clean up titan parts before disconnect
+	if ( ent->client->titanMode ) {
+		G_DespawnTitanParts( ent );
+	}
+
 	// stop any following clients
 	for ( i = 0 ; i < level.maxclients ; i++ ) {
 		if ( level.clients[i].sess.sessionTeam == TEAM_SPECTATOR

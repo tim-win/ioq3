@@ -1719,8 +1719,10 @@ void Cmd_Titan_f( gentity_t *ent ) {
 		ent->health = TITAN_HEALTH;
 		ent->client->ps.stats[STAT_HEALTH] = TITAN_HEALTH;
 		ent->client->ps.stats[STAT_MAX_HEALTH] = TITAN_HEALTH;
+		G_SpawnTitanParts( ent );
 		trap_SendServerCommand( ent-g_entities, "print \"TITAN MODE ACTIVATED\n\"" );
 	} else {
+		G_DespawnTitanParts( ent );
 		ent->client->ps.stats[STAT_MAX_HEALTH] = ent->client->pers.maxHealth;
 		if ( ent->health > ent->client->ps.stats[STAT_MAX_HEALTH] ) {
 			ent->health = ent->client->ps.stats[STAT_MAX_HEALTH];
@@ -1820,6 +1822,8 @@ void ClientCommand( int clientNum ) {
 		Cmd_Kill_f (ent);
 	else if (Q_stricmp (cmd, "titan") == 0)
 		Cmd_Titan_f (ent);
+	else if (Q_stricmp (cmd, "titan_parts") == 0)
+		Cmd_TitanParts_f (ent);
 	else if (Q_stricmp (cmd, "teamtask") == 0)
 		Cmd_TeamTask_f (ent);
 	else if (Q_stricmp (cmd, "levelshot") == 0)

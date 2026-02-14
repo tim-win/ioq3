@@ -10,6 +10,7 @@ set(CGAME_SOURCES
     ${SOURCE_DIR}/game/bg_misc.c
     ${SOURCE_DIR}/game/bg_pmove.c
     ${SOURCE_DIR}/game/bg_slidemove.c
+    ${SOURCE_DIR}/game/bg_titan_parts.c
     ${SOURCE_DIR}/game/bg_lib.c
     ${SOURCE_DIR}/cgame/cg_consolecmds.c
     ${SOURCE_DIR}/cgame/cg_draw.c
@@ -46,6 +47,7 @@ set(GAME_SOURCES
     ${SOURCE_DIR}/game/bg_misc.c
     ${SOURCE_DIR}/game/bg_pmove.c
     ${SOURCE_DIR}/game/bg_slidemove.c
+    ${SOURCE_DIR}/game/bg_titan_parts.c
     ${SOURCE_DIR}/game/bg_lib.c
     ${SOURCE_DIR}/game/g_active.c
     ${SOURCE_DIR}/game/g_arenas.c
@@ -63,6 +65,7 @@ set(GAME_SOURCES
     ${SOURCE_DIR}/game/g_svcmds.c
     ${SOURCE_DIR}/game/g_target.c
     ${SOURCE_DIR}/game/g_team.c
+    ${SOURCE_DIR}/game/g_titan.c
     ${SOURCE_DIR}/game/g_trigger.c
     ${SOURCE_DIR}/game/g_utils.c
     ${SOURCE_DIR}/game/g_weapon.c

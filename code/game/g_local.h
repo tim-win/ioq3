@@ -174,6 +174,9 @@ struct gentity_s {
 	float		random;
 
 	gitem_t		*item;			// for bonus items
+
+	// titan part child entity fields
+	int			titanPartType;	// titanPartType_t — which part this entity represents
 };
 
 
@@ -319,6 +322,10 @@ struct gclient_s {
 	char		*areabits;
 
 	qboolean	titanMode;		// qtrue when player is a titan
+
+	// titan hitbox children
+	gentity_t	*titanParts[MAX_TITAN_PARTS];
+	int			numTitanParts;
 };
 
 
@@ -496,6 +503,16 @@ qboolean G_RadiusDamage (vec3_t origin, gentity_t *attacker, float damage, float
 int G_InvulnerabilityEffect( gentity_t *targ, vec3_t dir, vec3_t point, vec3_t impactpoint, vec3_t bouncedir );
 void body_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int damage, int meansOfDeath );
 void TossClientItems( gentity_t *self );
+
+//
+// g_titan.c
+//
+void G_InitTitanCvars( void );
+void G_SpawnTitanParts( gentity_t *ent );
+void G_DespawnTitanParts( gentity_t *ent );
+void G_UpdateTitanParts( gentity_t *ent );
+void Cmd_TitanParts_f( gentity_t *ent );
+
 #ifdef MISSIONPACK
 void TossClientPersistantPowerups( gentity_t *self );
 #endif

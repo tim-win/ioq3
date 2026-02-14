@@ -151,6 +151,7 @@ vmCvar_t 	cg_stats;
 vmCvar_t 	cg_buildScript;
 vmCvar_t 	cg_forceModel;
 vmCvar_t	cg_paused;
+vmCvar_t	cg_titanDebug;
 vmCvar_t	cg_blood;
 vmCvar_t	cg_predictItems;
 vmCvar_t	cg_deferPlayers;
@@ -284,6 +285,7 @@ static cvarTable_t cvarTable[] = {
 	// but we also reference them here
 	{ &cg_buildScript, "com_buildScript", "0", 0 },	// force loading of all possible data amd error on failures
 	{ &cg_paused, "cl_paused", "0", CVAR_ROM },
+	{ &cg_titanDebug, "cg_titanDebug", "0", CVAR_ARCHIVE },
 	{ &cg_blood, "com_blood", "1", CVAR_ARCHIVE },
 	{ &cg_synchronousClients, "g_synchronousClients", "0", CVAR_SYSTEMINFO },
 #ifdef MISSIONPACK

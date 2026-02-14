@@ -23,7 +23,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cg_ents.c -- present snapshot entities, happens every single frame
 
 #include "cg_local.h"
+#include "../game/bg_titan_parts.h"
 
+static void CG_DrawTitanPartDebug( void );
 
 /*
 ======================
@@ -1091,6 +1093,141 @@ void CG_AddPacketEntities( void ) {
 	for ( num = 0 ; num < cg.snap->numEntities ; num++ ) {
 		cent = &cg_entities[ cg.snap->entities[ num ].number ];
 		CG_AddCEntity( cent );
+	}
+
+	// draw titan part debug boxes if enabled
+	if ( cg_titanDebug.integer ) {
+		CG_DrawTitanPartDebug();
+	}
+}
+
+
+/*
+===============
+CG_DrawDebugBoxFace
+
+Draw a single quad face of a debug box using trap_R_AddPolyToScene.
+===============
+*/
+static void CG_DrawDebugBoxFace( vec3_t p0, vec3_t p1, vec3_t p2, vec3_t p3,
+								 byte r, byte g, byte b, byte a ) {
+	polyVert_t	verts[4];
+	int			i;
+
+	VectorCopy( p0, verts[0].xyz );
+	VectorCopy( p1, verts[1].xyz );
+	VectorCopy( p2, verts[2].xyz );
+	VectorCopy( p3, verts[3].xyz );
+
+	for ( i = 0; i < 4; i++ ) {
+		verts[i].st[0] = 0;
+		verts[i].st[1] = 0;
+		verts[i].modulate[0] = r;
+		verts[i].modulate[1] = g;
+		verts[i].modulate[2] = b;
+		verts[i].modulate[3] = a;
+	}
+
+	trap_R_AddPolyToScene( cgs.media.whiteShader, 4, verts );
+}
+
+/*
+===============
+CG_DrawDebugBox
+
+Draw a translucent colored box given origin + mins/maxs.
+===============
+*/
+static void CG_DrawDebugBox( vec3_t origin, vec3_t mins, vec3_t maxs,
+							 byte r, byte g, byte b, byte a ) {
+	vec3_t lo, hi;
+
+	VectorAdd( origin, mins, lo );
+	VectorAdd( origin, maxs, hi );
+
+	{
+		vec3_t p0, p1, p2, p3;
+
+		// bottom face (z = lo[2])
+		VectorSet( p0, lo[0], lo[1], lo[2] );
+		VectorSet( p1, hi[0], lo[1], lo[2] );
+		VectorSet( p2, hi[0], hi[1], lo[2] );
+		VectorSet( p3, lo[0], hi[1], lo[2] );
+		CG_DrawDebugBoxFace( p0, p1, p2, p3, r, g, b, a );
+
+		// top face (z = hi[2])
+		VectorSet( p0, lo[0], lo[1], hi[2] );
+		VectorSet( p1, lo[0], hi[1], hi[2] );
+		VectorSet( p2, hi[0], hi[1], hi[2] );
+		VectorSet( p3, hi[0], lo[1], hi[2] );
+		CG_DrawDebugBoxFace( p0, p1, p2, p3, r, g, b, a );
+
+		// front face (y = hi[1])
+		VectorSet( p0, lo[0], hi[1], lo[2] );
+		VectorSet( p1, hi[0], hi[1], lo[2] );
+		VectorSet( p2, hi[0], hi[1], hi[2] );
+		VectorSet( p3, lo[0], hi[1], hi[2] );
+		CG_DrawDebugBoxFace( p0, p1, p2, p3, r, g, b, a );
+
+		// back face (y = lo[1])
+		VectorSet( p0, hi[0], lo[1], lo[2] );
+		VectorSet( p1, lo[0], lo[1], lo[2] );
+		VectorSet( p2, lo[0], lo[1], hi[2] );
+		VectorSet( p3, hi[0], lo[1], hi[2] );
+		CG_DrawDebugBoxFace( p0, p1, p2, p3, r, g, b, a );
+
+		// left face (x = lo[0])
+		VectorSet( p0, lo[0], lo[1], lo[2] );
+		VectorSet( p1, lo[0], hi[1], lo[2] );
+		VectorSet( p2, lo[0], hi[1], hi[2] );
+		VectorSet( p3, lo[0], lo[1], hi[2] );
+		CG_DrawDebugBoxFace( p0, p1, p2, p3, r, g, b, a );
+
+		// right face (x = hi[0])
+		VectorSet( p0, hi[0], hi[1], lo[2] );
+		VectorSet( p1, hi[0], lo[1], lo[2] );
+		VectorSet( p2, hi[0], lo[1], hi[2] );
+		VectorSet( p3, hi[0], hi[1], hi[2] );
+		CG_DrawDebugBoxFace( p0, p1, p2, p3, r, g, b, a );
+	}
+}
+
+/*
+===============
+CG_DrawTitanPartDebug
+
+Iterate all snapshot entities, draw debug boxes for ET_TITAN_PART entities.
+cg_titanDebug 1 = translucent filled boxes
+cg_titanDebug 2 = wireframe edges (TODO)
+===============
+*/
+static void CG_DrawTitanPartDebug( void ) {
+	int					num;
+	entityState_t		*es;
+	const titanPartDef_t *def;
+	int					partType;
+
+	for ( num = 0; num < cg.snap->numEntities; num++ ) {
+		es = &cg.snap->entities[num];
+
+		if ( es->eType != ET_TITAN_PART ) {
+			continue;
+		}
+
+		partType = es->generic1;
+		if ( partType < 0 || partType >= NUM_TITAN_PARTS ) {
+			continue;
+		}
+
+		def = &titanParts[partType];
+
+		{
+			vec3_t partMins, partMaxs;
+			VectorCopy( def->mins, partMins );
+			VectorCopy( def->maxs, partMaxs );
+			CG_DrawDebugBox( es->pos.trBase, partMins, partMaxs,
+							 def->color[0], def->color[1], def->color[2], def->color[3] );
+		}
 	}
 }
 
