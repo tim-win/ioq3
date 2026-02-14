@@ -13,11 +13,11 @@
 static vmCvar_t	titan_damage_log;
 
 /*
- * TitanPartDie -- damage callback for child hitbox entities.
+ * TitanPartPain -- pain callback for child hitbox entities.
+ * Fires on EVERY damage event (unlike die which only fires at health<=0).
  * Routes damage to parent player with the part's multiplier applied.
  */
-static void TitanPartDie( gentity_t *self, gentity_t *inflictor,
-						  gentity_t *attacker, int damage, int mod ) {
+static void TitanPartPain( gentity_t *self, gentity_t *attacker, int damage ) {
 	gentity_t		*parent;
 	const titanPartDef_t *def;
 	int				scaled;
@@ -42,8 +42,8 @@ static void TitanPartDie( gentity_t *self, gentity_t *inflictor,
 	}
 
 	// Route damage to parent
-	G_Damage( parent, inflictor, attacker, NULL, NULL, scaled,
-			  DAMAGE_NO_ARMOR, mod );
+	G_Damage( parent, NULL, attacker, NULL, NULL, scaled,
+			  DAMAGE_NO_ARMOR, MOD_UNKNOWN );
 
 	// Keep child alive — it has no health pool of its own
 	self->health = 999;
@@ -120,7 +120,7 @@ void G_SpawnTitanParts( gentity_t *ent ) {
 		// Damage handling
 		child->takedamage = qtrue;
 		child->health = 999;  // never dies on its own
-		child->die = TitanPartDie;
+		child->pain = TitanPartPain;
 
 		// Entity state for client-side rendering
 		child->s.eType = ET_TITAN_PART;

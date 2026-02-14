@@ -473,6 +473,79 @@ qboolean	ConsoleCommand( void ) {
 		return qtrue;
 	}
 
+	if (Q_stricmp (cmd, "forcetitan") == 0) {
+		char	arg[MAX_TOKEN_CHARS];
+		int		clientNum;
+		gentity_t *ent;
+
+		trap_Argv( 1, arg, sizeof( arg ) );
+		clientNum = atoi( arg );
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			G_Printf( "forcetitan: bad client number %d\n", clientNum );
+			return qtrue;
+		}
+		ent = &g_entities[clientNum];
+		if ( !ent->client || ent->client->pers.connected != CON_CONNECTED ) {
+			G_Printf( "forcetitan: client %d not connected\n", clientNum );
+			return qtrue;
+		}
+		Cmd_Titan_f( ent );
+		G_Printf( "forcetitan: client %d titan=%d\n", clientNum, ent->client->titanMode );
+		return qtrue;
+	}
+
+	if (Q_stricmp (cmd, "titan_parts") == 0) {
+		char	arg[MAX_TOKEN_CHARS];
+		int		clientNum;
+		gentity_t *ent;
+
+		trap_Argv( 1, arg, sizeof( arg ) );
+		clientNum = atoi( arg );
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			G_Printf( "titan_parts: bad client number\n" );
+			return qtrue;
+		}
+		ent = &g_entities[clientNum];
+		if ( !ent->client || ent->client->pers.connected != CON_CONNECTED ) {
+			G_Printf( "titan_parts: client %d not connected\n", clientNum );
+			return qtrue;
+		}
+		Cmd_TitanParts_f( ent );
+		return qtrue;
+	}
+
+	if (Q_stricmp (cmd, "test_titan_damage") == 0) {
+		char	arg[MAX_TOKEN_CHARS];
+		int		clientNum, partIdx, dmgAmount;
+		gentity_t *ent;
+
+		trap_Argv( 1, arg, sizeof( arg ) );
+		clientNum = atoi( arg );
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			G_Printf( "test_titan_damage <client> <part 0-6> <damage>\n" );
+			return qtrue;
+		}
+		ent = &g_entities[clientNum];
+		if ( !ent->client || !ent->client->titanMode ) {
+			G_Printf( "test_titan_damage: client %d not in titan mode\n", clientNum );
+			return qtrue;
+		}
+		trap_Argv( 2, arg, sizeof( arg ) );
+		partIdx = atoi( arg );
+		if ( partIdx < 0 || partIdx >= ent->client->numTitanParts ) {
+			G_Printf( "test_titan_damage: bad part index %d (have %d)\n", partIdx, ent->client->numTitanParts );
+			return qtrue;
+		}
+		trap_Argv( 3, arg, sizeof( arg ) );
+		dmgAmount = atoi( arg );
+		if ( dmgAmount <= 0 ) dmgAmount = 50;
+
+		G_Printf( "test_titan_damage: hitting client %d part %d with %d damage\n", clientNum, partIdx, dmgAmount );
+		G_Damage( ent->client->titanParts[partIdx], NULL, NULL, NULL, NULL, dmgAmount, 0, MOD_UNKNOWN );
+		G_Printf( "test_titan_damage: client %d health now %d\n", clientNum, ent->health );
+		return qtrue;
+	}
+
 	if (Q_stricmp (cmd, "botlist") == 0) {
 		Svcmd_BotList_f();
 		return qtrue;

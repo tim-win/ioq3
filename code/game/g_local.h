@@ -512,6 +512,7 @@ void G_SpawnTitanParts( gentity_t *ent );
 void G_DespawnTitanParts( gentity_t *ent );
 void G_UpdateTitanParts( gentity_t *ent );
 void Cmd_TitanParts_f( gentity_t *ent );
+void Cmd_Titan_f( gentity_t *ent );
 
 #ifdef MISSIONPACK
 void TossClientPersistantPowerups( gentity_t *self );

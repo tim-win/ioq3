@@ -1040,6 +1040,9 @@ static void CG_AddCEntity( centity_t *cent ) {
 	case ET_TEAM:
 		CG_TeamBase( cent );
 		break;
+	case ET_TITAN_PART:
+		// Handled by CG_DrawTitanPartDebug when cg_titanDebug is enabled
+		break;
 	}
 }
 
