@@ -33,7 +33,8 @@
             {"src": "demoq3/vm/cgame.qvm", "dst": "/demoq3/vm"},
             {"src": "demoq3/vm/qagame.qvm", "dst": "/demoq3/vm"},
             {"src": "demoq3/vm/ui.qvm", "dst": "/demoq3/vm"},
-            {"src": "demoq3/maps/qfcity1.bsp", "dst": "/demoq3/maps"}
+            {"src": "demoq3/maps/qfcity1.bsp", "dst": "/demoq3/maps"},
+            {"src": "demoq3/scripts/quakefall.shader", "dst": "/demoq3/scripts"}
         ]
     },
     "tademo": {

@@ -1114,8 +1114,13 @@ Draw a single quad face of a debug box using trap_R_AddPolyToScene.
 */
 static void CG_DrawDebugBoxFace( vec3_t p0, vec3_t p1, vec3_t p2, vec3_t p3,
 								 byte r, byte g, byte b, byte a ) {
+	static qhandle_t debugShader = 0;
 	polyVert_t	verts[4];
 	int			i;
+
+	if ( !debugShader ) {
+		debugShader = trap_R_RegisterShader( "titanDebug" );
+	}
 
 	VectorCopy( p0, verts[0].xyz );
 	VectorCopy( p1, verts[1].xyz );
@@ -1131,7 +1136,7 @@ static void CG_DrawDebugBoxFace( vec3_t p0, vec3_t p1, vec3_t p2, vec3_t p3,
 		verts[i].modulate[3] = a;
 	}
 
-	trap_R_AddPolyToScene( cgs.media.whiteShader, 4, verts );
+	trap_R_AddPolyToScene( debugShader, 4, verts );
 }
 
 /*
@@ -1209,11 +1214,18 @@ static void CG_DrawTitanPartDebug( void ) {
 	entityState_t		*es;
 	const titanPartDef_t *def;
 	int					partType;
+	int					titanCount = 0;
 
 	for ( num = 0; num < cg.snap->numEntities; num++ ) {
 		es = &cg.snap->entities[num];
 
 		if ( es->eType != ET_TITAN_PART ) {
+			continue;
+		}
+		titanCount++;
+
+		// Skip own titan parts in first-person view (camera is inside them)
+		if ( es->otherEntityNum == cg.clientNum && !cg_thirdPerson.integer ) {
 			continue;
 		}
 

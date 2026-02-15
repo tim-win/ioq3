@@ -56,17 +56,17 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	DEAD_VIEWHEIGHT		-16
 #define INVUL_RADIUS		42
 
-// titan mode dimensions
-#define TITAN_WIDTH				30
+// titan mode dimensions (~377 units tall, ground to head)
+#define TITAN_WIDTH				52
 #define TITAN_MINS_Z			-24
-#define TITAN_HEIGHT			200
-#define TITAN_VIEWHEIGHT		150
-#define TITAN_CROUCH_HEIGHT		120
-#define TITAN_CROUCH_VIEWHEIGHT	100
-#define TITAN_SPEED_SCALE		0.6f
+#define TITAN_HEIGHT			346
+#define TITAN_VIEWHEIGHT		260
+#define TITAN_CROUCH_HEIGHT		208
+#define TITAN_CROUCH_VIEWHEIGHT	173
+#define TITAN_SPEED_SCALE		1.1f
 #define TITAN_HEALTH			500
 #define MAX_TITAN_PARTS			7
-#define TITAN_RENDER_OFFSET		168		// lift player model this many units (3x player height)
+#define TITAN_RENDER_OFFSET		225		// lift player model to upper chest / vent height
 
 //
 // config strings are a general means of communicating variable length strings

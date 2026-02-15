@@ -125,6 +125,10 @@ void G_SpawnTitanParts( gentity_t *ent ) {
 		// Entity state for client-side rendering
 		child->s.eType = ET_TITAN_PART;
 		child->s.generic1 = def->type;  // tell cgame which part this is
+		child->s.otherEntityNum = ent->s.number;  // tell cgame which player owns this part
+
+		// Always send to all clients (PVS check can miss nearby entities)
+		child->r.svFlags |= SVF_BROADCAST;
 
 		// Link into the world
 		trap_LinkEntity( child );
