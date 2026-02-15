@@ -70,6 +70,25 @@ extern	float	pm_friction;
 extern	float	pm_waterfriction;
 extern	float	pm_flightfriction;
 
+// parkour movement parameters (tunable via server cvars)
+extern	float	pm_wallrunMinSpeed;
+extern	float	pm_wallrunDuration;
+extern	float	pm_wallrunGravity;
+extern	float	pm_wallrunPull;
+extern	float	pm_wallrunUpForce;
+extern	float	pm_wallrunDetectDist;
+extern	float	pm_walljumpForce;
+extern	float	pm_walljumpUpForce;
+extern	float	pm_doublejumpVelocity;
+extern	float	pm_slideMinSpeed;
+extern	float	pm_slideFriction;
+extern	float	pm_ledgeGrabRange;
+extern	float	pm_ledgeGrabHeight;
+extern	float	pm_ledgeClimbSpeed;
+extern	float	pm_vaultMaxHeight;
+extern	float	pm_vaultSpeed;
+extern	float	pm_parkourDebug;
+
 extern	int		c_pmove;
 
 void PM_ClipVelocity( vec3_t in, vec3_t normal, vec3_t out, float overbounce );

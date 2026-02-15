@@ -913,6 +913,9 @@ void ClientThink_real( gentity_t *ent ) {
 	}
 #endif
 
+	// Override usercmd if parkour test is running
+	G_ParkourTestOverrideCmd( ent );
+
 	pm.ps = &client->ps;
 	pm.cmd = *ucmd;
 	if ( pm.ps->pm_type == PM_DEAD ) {

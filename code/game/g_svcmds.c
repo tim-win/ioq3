@@ -641,6 +641,25 @@ qboolean	ConsoleCommand( void ) {
 		return qtrue;
 	}
 
+	if (Q_stricmp (cmd, "test_parkour") == 0) {
+		char	arg[MAX_TOKEN_CHARS];
+		int		clientNum = 0;
+
+		trap_Argv( 1, arg, sizeof( arg ) );
+		if ( !arg[0] ) {
+			G_Printf( "usage: test_parkour <test_name> [client_num]\n" );
+			G_Printf( "  tests: doublejump, wallrun, walljump, slide, vault, ledgegrab\n" );
+			return qtrue;
+		}
+		if ( trap_Argc() >= 3 ) {
+			char arg2[MAX_TOKEN_CHARS];
+			trap_Argv( 2, arg2, sizeof( arg2 ) );
+			clientNum = atoi( arg2 );
+		}
+		G_ParkourTestStart( arg, clientNum );
+		return qtrue;
+	}
+
 	if (Q_stricmp (cmd, "botlist") == 0) {
 		Svcmd_BotList_f();
 		return qtrue;

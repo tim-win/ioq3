@@ -45,7 +45,32 @@ float	pm_waterfriction = 1.0f;
 float	pm_flightfriction = 3.0f;
 float	pm_spectatorfriction = 5.0f;
 
+// parkour movement parameters
+float	pm_wallrunMinSpeed = 200.0f;
+float	pm_wallrunDuration = 1500.0f;
+float	pm_wallrunGravity = 200.0f;
+float	pm_wallrunPull = 128.0f;
+float	pm_wallrunUpForce = 50.0f;
+float	pm_wallrunDetectDist = 32.0f;
+float	pm_walljumpForce = 300.0f;
+float	pm_walljumpUpForce = 270.0f;
+float	pm_doublejumpVelocity = 220.0f;
+float	pm_slideMinSpeed = 400.0f;
+float	pm_slideFriction = 0.5f;
+float	pm_ledgeGrabRange = 32.0f;
+float	pm_ledgeGrabHeight = 48.0f;
+float	pm_ledgeClimbSpeed = 300.0f;
+float	pm_vaultMaxHeight = 48.0f;
+float	pm_vaultSpeed = 1.0f;
+float	pm_parkourDebug = 0.0f;
+
 int		c_pmove = 0;
+
+// forward declarations for parkour functions
+static qboolean PM_CheckDoubleJump( void );
+static void PM_CheckWallRun( void );
+static void PM_WallRunMove( void );
+static void PM_CheckMantle( void );
 
 
 /*
@@ -196,8 +221,17 @@ static void PM_Friction( void ) {
 		if ( pml.walking && !(pml.groundTrace.surfaceFlags & SURF_SLICK) ) {
 			// if getting knocked back, no friction
 			if ( ! (pm->ps->pm_flags & PMF_TIME_KNOCKBACK) ) {
+				float friction = pm_friction;
+
+				// crouch slide: reduced friction when ducked and fast (pilots only)
+				if ( ( pm->ps->pm_flags & PMF_DUCKED ) &&
+				     !( pm->ps->pm_flags & PMF_TITAN ) &&
+				     speed > pm_slideMinSpeed ) {
+					friction *= pm_slideFriction;
+				}
+
 				control = speed < pm_stopspeed ? pm_stopspeed : speed;
-				drop += control*pm_friction*pml.frametime;
+				drop += control*friction*pml.frametime;
 			}
 		}
 	}
@@ -609,6 +643,11 @@ static void PM_AirMove( void ) {
 	float		wishspeed;
 	float		scale;
 	usercmd_t	cmd;
+
+	// check for double jump (pilots only, in air, fresh press)
+	if ( PM_CheckDoubleJump() ) {
+		// double jump performed, continue with air move using new velocity
+	}
 
 	PM_Friction();
 
@@ -1180,8 +1219,13 @@ static void PM_GroundTrace( void ) {
 		if ( pm->debugLevel ) {
 			Com_Printf("%i:Land\n", c_pmove);
 		}
-		
+
 		PM_CrashLand();
+
+		// reset parkour air flags on landing
+		pm->ps->pm_flags &= ~PMF_DOUBLEJUMP;
+		pm->ps->pm_flags &= ~PMF_WALLRUN;
+		pm->ps->generic1 = 0;
 
 		// don't do landing time if we were just going down a slope
 		if ( pml.previous_velocity[2] < -200 ) {
@@ -1823,6 +1867,481 @@ static void PM_DropTimers( void ) {
 	}
 }
 
+//===================================================================
+// PARKOUR MOVEMENT SYSTEM
+// Wall run, wall jump, double jump, crouch slide, ledge grab, vault
+//===================================================================
+
+/*
+=============
+PM_CheckWallRun
+
+Detect wall contact and initiate/maintain wall run.
+Uses side traces (left/right) perpendicular to view direction.
+Wall run stored in PMF_WALLRUN flag, duration in ps->generic1.
+=============
+*/
+static void PM_CheckWallRun( void ) {
+	trace_t trace;
+	vec3_t start, end;
+	vec3_t flatForward, flatRight;
+	float speed;
+	int wallSide;	// -1 = left, 1 = right, 0 = none
+
+	// titans can't wall run
+	if ( pm->ps->pm_flags & PMF_TITAN ) {
+		pm->ps->pm_flags &= ~PMF_WALLRUN;
+		return;
+	}
+
+	// must be airborne
+	if ( pml.walking ) {
+		pm->ps->pm_flags &= ~PMF_WALLRUN;
+		pm->ps->generic1 = 0;
+		return;
+	}
+
+	// flatten forward/right to horizontal plane
+	VectorCopy( pml.forward, flatForward );
+	flatForward[2] = 0;
+	VectorNormalize( flatForward );
+	VectorCopy( pml.right, flatRight );
+	flatRight[2] = 0;
+	VectorNormalize( flatRight );
+
+	// if already wall running, check if we should continue
+	if ( pm->ps->pm_flags & PMF_WALLRUN ) {
+		// check duration
+		if ( pm->ps->generic1 <= 0 ) {
+			pm->ps->pm_flags &= ~PMF_WALLRUN;
+			pm->ps->generic1 = 0;
+			return;
+		}
+
+		// decrement timer
+		pm->ps->generic1 -= pml.msec;
+		if ( pm->ps->generic1 < 0 ) {
+			pm->ps->generic1 = 0;
+		}
+
+		// re-trace to find wall (check both sides)
+		wallSide = 0;
+		VectorCopy( pm->ps->origin, start );
+
+		// try right
+		VectorMA( start, pm_wallrunDetectDist + 8, flatRight, end );
+		pm->trace( &trace, start, pm->mins, pm->maxs, end, pm->ps->clientNum, pm->tracemask );
+		if ( trace.fraction < 1.0f && fabs( trace.plane.normal[2] ) < 0.3f ) {
+			wallSide = 1;
+		} else {
+			// try left
+			VectorMA( start, -(pm_wallrunDetectDist + 8), flatRight, end );
+			pm->trace( &trace, start, pm->mins, pm->maxs, end, pm->ps->clientNum, pm->tracemask );
+			if ( trace.fraction < 1.0f && fabs( trace.plane.normal[2] ) < 0.3f ) {
+				wallSide = -1;
+			}
+		}
+
+		if ( wallSide == 0 ) {
+			// lost wall contact
+			pm->ps->pm_flags &= ~PMF_WALLRUN;
+			pm->ps->generic1 = 0;
+			return;
+		}
+
+		// must still be pressing forward
+		if ( pm->cmd.forwardmove <= 0 ) {
+			pm->ps->pm_flags &= ~PMF_WALLRUN;
+			pm->ps->generic1 = 0;
+			return;
+		}
+
+		// project velocity onto wall plane (maintain speed along wall)
+		PM_ClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
+
+		// apply reduced gravity
+		pm->ps->velocity[2] -= pm_wallrunGravity * pml.frametime;
+
+		// apply adhesion pull toward wall
+		{
+			vec3_t pullDir;
+			VectorScale( trace.plane.normal, -pm_wallrunPull * pml.frametime, pullDir );
+			VectorAdd( pm->ps->velocity, pullDir, pm->ps->velocity );
+		}
+
+		// check for wall jump
+		if ( pm->cmd.upmove >= 10 && !( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
+			vec3_t kickDir;
+
+			pm->ps->pm_flags |= PMF_JUMP_HELD;
+			pm->ps->pm_flags &= ~PMF_WALLRUN;
+			pm->ps->generic1 = -300;	// 300ms cooldown before can wall run again
+
+			// kick off wall: perpendicular to wall + upward
+			VectorScale( trace.plane.normal, pm_walljumpForce, kickDir );
+			pm->ps->velocity[0] += kickDir[0];
+			pm->ps->velocity[1] += kickDir[1];
+			pm->ps->velocity[2] = pm_walljumpUpForce;
+
+			PM_AddEvent( EV_JUMP );
+			PM_ForceLegsAnim( LEGS_JUMP );
+			pm->ps->pm_flags &= ~PMF_BACKWARDS_JUMP;
+
+			// allow double jump after wall jump
+			pm->ps->pm_flags &= ~PMF_DOUBLEJUMP;
+
+			if ( pm_parkourDebug ) {
+				Com_Printf( "PARKOUR: Wall JUMP (force=%.0f, up=%.0f)\n",
+					pm_walljumpForce, pm_walljumpUpForce );
+			}
+			return;
+		}
+
+		return;
+	}
+
+	// not currently wall running — try to initiate
+	// need to be airborne, pressing forward, and have enough speed
+
+	// wall jump cooldown: generic1 < 0 means cooling down
+	if ( pm->ps->generic1 < 0 ) {
+		pm->ps->generic1 += pml.msec;
+		if ( pm->ps->generic1 > 0 ) {
+			pm->ps->generic1 = 0;
+		}
+		return;
+	}
+
+	if ( pm->cmd.forwardmove <= 0 ) {
+		if ( pm_parkourDebug > 1 ) {
+			Com_Printf( "PARKOUR wallrun: no forward input (fwd=%d)\n", pm->cmd.forwardmove );
+		}
+		return;
+	}
+
+	speed = sqrt( pm->ps->velocity[0] * pm->ps->velocity[0] +
+	              pm->ps->velocity[1] * pm->ps->velocity[1] );
+	if ( speed < pm_wallrunMinSpeed ) {
+		if ( pm_parkourDebug > 1 ) {
+			Com_Printf( "PARKOUR wallrun: too slow (%.0f < %.0f)\n", speed, pm_wallrunMinSpeed );
+		}
+		return;
+	}
+
+	// trace right and left to find a wall
+	VectorCopy( pm->ps->origin, start );
+	wallSide = 0;
+
+	VectorMA( start, pm_wallrunDetectDist, flatRight, end );
+	pm->trace( &trace, start, pm->mins, pm->maxs, end, pm->ps->clientNum, pm->tracemask );
+	if ( pm_parkourDebug > 1 ) {
+		Com_Printf( "PARKOUR wallrun trace R: frac=%.2f nz=%.2f pos=(%.0f,%.0f,%.0f)\n",
+			trace.fraction, trace.plane.normal[2],
+			pm->ps->origin[0], pm->ps->origin[1], pm->ps->origin[2] );
+	}
+	if ( trace.fraction < 1.0f && fabs( trace.plane.normal[2] ) < 0.3f ) {
+		wallSide = 1;
+	} else {
+		VectorMA( start, -pm_wallrunDetectDist, flatRight, end );
+		pm->trace( &trace, start, pm->mins, pm->maxs, end, pm->ps->clientNum, pm->tracemask );
+		if ( pm_parkourDebug > 1 ) {
+			Com_Printf( "PARKOUR wallrun trace L: frac=%.2f nz=%.2f\n",
+				trace.fraction, trace.plane.normal[2] );
+		}
+		if ( trace.fraction < 1.0f && fabs( trace.plane.normal[2] ) < 0.3f ) {
+			wallSide = -1;
+		}
+	}
+
+	if ( wallSide == 0 ) {
+		if ( pm_parkourDebug > 1 ) {
+			Com_Printf( "PARKOUR wallrun: no wall found\n" );
+		}
+		return;	// no wall nearby
+	}
+
+	// don't re-attach if descending too fast (just fell off)
+	if ( pm->ps->velocity[2] < -200 ) {
+		return;
+	}
+
+	// initiate wall run
+	pm->ps->pm_flags |= PMF_WALLRUN;
+	pm->ps->generic1 = (int)pm_wallrunDuration;
+
+	// initial upward nudge
+	if ( pm->ps->velocity[2] < pm_wallrunUpForce ) {
+		pm->ps->velocity[2] = pm_wallrunUpForce;
+	}
+
+	// project velocity onto wall plane
+	PM_ClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
+
+	if ( pm_parkourDebug ) {
+		Com_Printf( "PARKOUR: Wall run START (side=%d, speed=%.0f, dur=%d)\n",
+			wallSide, speed, pm->ps->generic1 );
+	}
+}
+
+/*
+=============
+PM_WallRunMove
+
+Movement while wall running: follow the wall with reduced gravity.
+Replaces normal AirMove when PMF_WALLRUN is active.
+=============
+*/
+static void PM_WallRunMove( void ) {
+	int		i;
+	vec3_t	wishvel;
+	float	fmove, smove;
+	vec3_t	wishdir;
+	float	wishspeed;
+	float	scale;
+	usercmd_t cmd;
+
+	fmove = pm->cmd.forwardmove;
+	smove = pm->cmd.rightmove;
+
+	cmd = pm->cmd;
+	scale = PM_CmdScale( &cmd );
+
+	PM_SetMovementDir();
+
+	// project moves down to flat plane
+	pml.forward[2] = 0;
+	pml.right[2] = 0;
+	VectorNormalize( pml.forward );
+	VectorNormalize( pml.right );
+
+	for ( i = 0; i < 2; i++ ) {
+		wishvel[i] = pml.forward[i] * fmove + pml.right[i] * smove;
+	}
+	wishvel[2] = 0;
+
+	VectorCopy( wishvel, wishdir );
+	wishspeed = VectorNormalize( wishdir );
+	wishspeed *= scale;
+
+	// wall running gets decent air control (like ground accel)
+	PM_Accelerate( wishdir, wishspeed, pm_accelerate * 0.5f );
+
+	PM_StepSlideMove( qtrue );
+}
+
+/*
+=============
+PM_CheckDoubleJump
+
+Check for double jump when airborne and jump pressed.
+Called from PM_AirMove path when not wall running.
+Returns qtrue if double jump was performed.
+=============
+*/
+static qboolean PM_CheckDoubleJump( void ) {
+	// titans can't double jump
+	if ( pm->ps->pm_flags & PMF_TITAN ) {
+		return qfalse;
+	}
+
+	// must be airborne (not on ground, not wall running)
+	if ( pml.walking || ( pm->ps->pm_flags & PMF_WALLRUN ) ) {
+		return qfalse;
+	}
+
+	// must be pressing jump
+	if ( pm->cmd.upmove < 10 ) {
+		return qfalse;
+	}
+
+	// must not be holding jump (fresh press required)
+	if ( pm->ps->pm_flags & PMF_JUMP_HELD ) {
+		pm->cmd.upmove = 0;
+		return qfalse;
+	}
+
+	// must not have already used double jump this air time
+	if ( pm->ps->pm_flags & PMF_DOUBLEJUMP ) {
+		pm->cmd.upmove = 0;
+		return qfalse;
+	}
+
+	// perform double jump
+	pm->ps->pm_flags |= PMF_JUMP_HELD;
+	pm->ps->pm_flags |= PMF_DOUBLEJUMP;
+
+	pm->ps->velocity[2] = pm_doublejumpVelocity;
+
+	if ( pm_parkourDebug ) {
+		Com_Printf( "PARKOUR: Double JUMP (vel=%.0f)\n", pm_doublejumpVelocity );
+	}
+
+	PM_AddEvent( EV_JUMP );
+
+	if ( pm->cmd.forwardmove >= 0 ) {
+		PM_ForceLegsAnim( LEGS_JUMP );
+		pm->ps->pm_flags &= ~PMF_BACKWARDS_JUMP;
+	} else {
+		PM_ForceLegsAnim( LEGS_JUMPB );
+		pm->ps->pm_flags |= PMF_BACKWARDS_JUMP;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+PM_CheckMantle
+
+Check for ledge grab or vault opportunity.
+Two-trace approach:
+  1. Forward trace at eye height — find wall
+  2. Downward trace from above wall hit — find ledge top
+If ledge top is at chest height or above: ledge grab (attach, climb)
+If ledge top is below chest height: vault (smooth hop over)
+=============
+*/
+static void PM_CheckMantle( void ) {
+	trace_t forwardTrace, topTrace;
+	vec3_t start, end;
+	vec3_t flatForward;
+	float ledgeHeight;
+	float playerFeet;
+
+	// titans can't mantle
+	if ( pm->ps->pm_flags & PMF_TITAN ) {
+		return;
+	}
+
+	// don't mantle while wall running
+	if ( pm->ps->pm_flags & PMF_WALLRUN ) {
+		return;
+	}
+
+	// must be pressing forward
+	if ( pm->cmd.forwardmove <= 0 ) {
+		return;
+	}
+
+	// don't mantle if already in a pm_time state (ledge grab in progress)
+	if ( pm->ps->pm_time && ( pm->ps->pm_flags & PMF_TIME_LAND ) ) {
+		return;
+	}
+
+	// flatten forward direction
+	VectorCopy( pml.forward, flatForward );
+	flatForward[2] = 0;
+	VectorNormalize( flatForward );
+
+	playerFeet = pm->ps->origin[2] + pm->mins[2];
+
+	// Step 1: Forward trace to find an obstacle or wall
+	// Try three heights: knee (vault detection), waist, and chest (ledge grab)
+	VectorCopy( pm->ps->origin, start );
+	start[2] = playerFeet + pm_vaultMaxHeight * 0.4f;	// knee height (vault detection)
+	VectorMA( start, pm_ledgeGrabRange + PLAYER_WIDTH, flatForward, end );
+	pm->trace( &forwardTrace, start, NULL, NULL, end, pm->ps->clientNum, pm->tracemask );
+
+	if ( forwardTrace.fraction >= 1.0f ) {
+		// try waist height
+		start[2] = playerFeet + pm_vaultMaxHeight;
+		VectorMA( start, pm_ledgeGrabRange + PLAYER_WIDTH, flatForward, end );
+		pm->trace( &forwardTrace, start, NULL, NULL, end, pm->ps->clientNum, pm->tracemask );
+	}
+
+	if ( forwardTrace.fraction >= 1.0f ) {
+		// try chest height for ledge grab
+		start[2] = playerFeet + pm_ledgeGrabHeight;
+		VectorMA( start, pm_ledgeGrabRange + PLAYER_WIDTH, flatForward, end );
+		pm->trace( &forwardTrace, start, NULL, NULL, end, pm->ps->clientNum, pm->tracemask );
+
+		if ( forwardTrace.fraction >= 1.0f ) {
+			return;	// no wall found
+		}
+	}
+
+	// Step 2: Trace down from above the hit point to find the ledge top
+	// Nudge forward past the wall face so we're above the obstacle, not on its side
+	VectorCopy( forwardTrace.endpos, start );
+	VectorMA( start, 2.0f, flatForward, start );	// 2 units past impact
+	start[2] = pm->ps->origin[2] + pm->maxs[2] + 16;	// above player head
+	VectorCopy( start, end );
+	end[2] = playerFeet;
+	pm->trace( &topTrace, start, NULL, NULL, end, pm->ps->clientNum, pm->tracemask );
+
+	if ( topTrace.fraction >= 1.0f ) {
+		return;	// no top surface found
+	}
+
+	// check top surface is roughly horizontal
+	if ( topTrace.plane.normal[2] < MIN_WALK_NORMAL ) {
+		return;
+	}
+
+	ledgeHeight = topTrace.endpos[2] - playerFeet;
+
+	// check there's room above the ledge for the player
+	// Position player origin as if standing on the ledge (feet on surface)
+	VectorCopy( topTrace.endpos, start );
+	start[2] = topTrace.endpos[2] + 1 - pm->mins[2];	// player origin with feet on ledge
+	VectorCopy( start, end );
+	end[2] = start[2] + 1;	// tiny upward trace to test room
+	{
+		trace_t roomTrace;
+		pm->trace( &roomTrace, start, pm->mins, pm->maxs, end, pm->ps->clientNum, pm->tracemask );
+		if ( roomTrace.allsolid || roomTrace.startsolid ) {
+			return;	// no room above ledge
+		}
+	}
+
+	if ( ledgeHeight > 0 && ledgeHeight <= pm_vaultMaxHeight && pml.walking ) {
+		// VAULT: waist-height obstacle while on ground
+		// Teleport player on top, maintain speed
+		pm->ps->origin[2] = topTrace.endpos[2] + 1 - pm->mins[2];
+		pm->ps->velocity[2] = 0;
+
+		// scale horizontal speed by vault speed multiplier
+		pm->ps->velocity[0] *= pm_vaultSpeed;
+		pm->ps->velocity[1] *= pm_vaultSpeed;
+
+		if ( pm_parkourDebug ) {
+			Com_Printf( "PARKOUR: VAULT (height=%.0f)\n", ledgeHeight );
+		}
+
+		PM_ForceLegsAnim( LEGS_JUMP );
+		return;
+	}
+
+	if ( ledgeHeight > pm_vaultMaxHeight && ledgeHeight <= pm_ledgeGrabHeight + 32 &&
+	     !pml.walking && pm->ps->velocity[2] <= 50 ) {
+		// LEDGE GRAB: chest-height ledge while airborne and not ascending fast
+		// Set velocity to climb upward, zero horizontal, set pm_time for climb duration
+		float climbDist = ledgeHeight - pm_vaultMaxHeight;
+		float climbTime = climbDist / pm_ledgeClimbSpeed * 1000.0f;
+
+		pm->ps->velocity[0] = flatForward[0] * 10;	// tiny forward to keep against wall
+		pm->ps->velocity[1] = flatForward[1] * 10;
+		pm->ps->velocity[2] = pm_ledgeClimbSpeed;
+
+		pm->ps->pm_flags |= PMF_TIME_LAND;	// reuse for brief lockout
+		pm->ps->pm_time = (int)climbTime;
+		if ( pm->ps->pm_time < 100 ) pm->ps->pm_time = 100;
+		if ( pm->ps->pm_time > 500 ) pm->ps->pm_time = 500;
+
+		// clear wall run and double jump flags
+		pm->ps->pm_flags &= ~PMF_WALLRUN;
+		pm->ps->pm_flags &= ~PMF_DOUBLEJUMP;
+		pm->ps->generic1 = 0;
+
+		if ( pm_parkourDebug ) {
+			Com_Printf( "PARKOUR: Ledge GRAB (height=%.0f, climbTime=%.0f)\n",
+				ledgeHeight, climbTime );
+		}
+
+		PM_ForceLegsAnim( LEGS_JUMP );
+	}
+}
+
 /*
 ================
 PM_UpdateViewAngles
@@ -2005,6 +2524,12 @@ void PmoveSingle (pmove_t *pmove) {
 
 	PM_DropTimers();
 
+	// parkour: wall run detection (sets/clears PMF_WALLRUN)
+	PM_CheckWallRun();
+
+	// parkour: ledge grab / vault detection
+	PM_CheckMantle();
+
 #ifdef MISSIONPACK
 	if ( pm->ps->powerups[PW_INVULNERABILITY] ) {
 		PM_InvulnerabilityMove();
@@ -2019,6 +2544,9 @@ void PmoveSingle (pmove_t *pmove) {
 		PM_AirMove();
 	} else if (pm->ps->pm_flags & PMF_TIME_WATERJUMP) {
 		PM_WaterJumpMove();
+	} else if ( pm->ps->pm_flags & PMF_WALLRUN ) {
+		// parkour: wall running movement
+		PM_WallRunMove();
 	} else if ( pm->waterlevel > 1 ) {
 		// swimming
 		PM_WaterMove();

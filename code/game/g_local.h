@@ -526,6 +526,12 @@ qboolean G_FindEjectPosition( gentity_t *ent, vec3_t result );
 void Cmd_TitanParts_f( gentity_t *ent );
 void Cmd_Titan_f( gentity_t *ent );
 void Cmd_CallTitan_f( gentity_t *ent );
+
+// g_parkour_test.c
+void G_ParkourTestStart( const char *testName, int clientNum );
+void G_ParkourTestFrame( void );
+void G_ParkourTestOverrideCmd( gentity_t *ent );
+qboolean G_ParkourTestActive( void );
 void Cmd_Embark_f( gentity_t *ent );
 void Cmd_Disembark_f( gentity_t *ent );
 

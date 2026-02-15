@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 #include "g_local.h"
+#include "bg_local.h"
 
 level_locals_t	level;
 
@@ -178,7 +179,26 @@ static cvarTable_t		gameCvarTable[] = {
 	{ &pmove_msec, "pmove_msec", "8", CVAR_SYSTEMINFO, 0, qfalse},
 
 	{ &g_rankings, "g_rankings", "0", 0, 0, qfalse},
-	{ &g_localTeamPref, "g_localTeamPref", "", 0, 0, qfalse }
+	{ &g_localTeamPref, "g_localTeamPref", "", 0, 0, qfalse },
+
+	// parkour movement cvars (synced to bg_pmove globals)
+	{ NULL, "pm_wallrunMinSpeed", "200", 0, 0, qfalse },
+	{ NULL, "pm_wallrunDuration", "1500", 0, 0, qfalse },
+	{ NULL, "pm_wallrunGravity", "200", 0, 0, qfalse },
+	{ NULL, "pm_wallrunPull", "128", 0, 0, qfalse },
+	{ NULL, "pm_wallrunUpForce", "50", 0, 0, qfalse },
+	{ NULL, "pm_wallrunDetectDist", "32", 0, 0, qfalse },
+	{ NULL, "pm_walljumpForce", "300", 0, 0, qfalse },
+	{ NULL, "pm_walljumpUpForce", "270", 0, 0, qfalse },
+	{ NULL, "pm_doublejumpVelocity", "220", 0, 0, qfalse },
+	{ NULL, "pm_slideMinSpeed", "400", 0, 0, qfalse },
+	{ NULL, "pm_slideFriction", "0.5", 0, 0, qfalse },
+	{ NULL, "pm_ledgeGrabRange", "32", 0, 0, qfalse },
+	{ NULL, "pm_ledgeGrabHeight", "48", 0, 0, qfalse },
+	{ NULL, "pm_ledgeClimbSpeed", "300", 0, 0, qfalse },
+	{ NULL, "pm_vaultMaxHeight", "48", 0, 0, qfalse },
+	{ NULL, "pm_vaultSpeed", "1.0", 0, 0, qfalse },
+	{ NULL, "pm_parkourDebug", "0", 0, 0, qfalse }
 
 };
 
@@ -397,6 +417,34 @@ void G_UpdateCvars( void ) {
 	if (remapped) {
 		G_RemapTeamShaders();
 	}
+}
+
+/*
+=================
+G_SyncParkourCvars
+
+Copy parkour cvar values to bg_pmove globals so movement code uses current values.
+Called every frame from G_RunFrame after G_UpdateCvars.
+=================
+*/
+void G_SyncParkourCvars( void ) {
+	pm_wallrunMinSpeed = trap_Cvar_VariableValue( "pm_wallrunMinSpeed" );
+	pm_wallrunDuration = trap_Cvar_VariableValue( "pm_wallrunDuration" );
+	pm_wallrunGravity = trap_Cvar_VariableValue( "pm_wallrunGravity" );
+	pm_wallrunPull = trap_Cvar_VariableValue( "pm_wallrunPull" );
+	pm_wallrunUpForce = trap_Cvar_VariableValue( "pm_wallrunUpForce" );
+	pm_wallrunDetectDist = trap_Cvar_VariableValue( "pm_wallrunDetectDist" );
+	pm_walljumpForce = trap_Cvar_VariableValue( "pm_walljumpForce" );
+	pm_walljumpUpForce = trap_Cvar_VariableValue( "pm_walljumpUpForce" );
+	pm_doublejumpVelocity = trap_Cvar_VariableValue( "pm_doublejumpVelocity" );
+	pm_slideMinSpeed = trap_Cvar_VariableValue( "pm_slideMinSpeed" );
+	pm_slideFriction = trap_Cvar_VariableValue( "pm_slideFriction" );
+	pm_ledgeGrabRange = trap_Cvar_VariableValue( "pm_ledgeGrabRange" );
+	pm_ledgeGrabHeight = trap_Cvar_VariableValue( "pm_ledgeGrabHeight" );
+	pm_ledgeClimbSpeed = trap_Cvar_VariableValue( "pm_ledgeClimbSpeed" );
+	pm_vaultMaxHeight = trap_Cvar_VariableValue( "pm_vaultMaxHeight" );
+	pm_vaultSpeed = trap_Cvar_VariableValue( "pm_vaultSpeed" );
+	pm_parkourDebug = trap_Cvar_VariableValue( "pm_parkourDebug" );
 }
 
 /*
@@ -1798,6 +1846,10 @@ void G_RunFrame( int levelTime ) {
 
 	// get any cvar changes
 	G_UpdateCvars();
+	G_SyncParkourCvars();
+
+	// advance parkour test sequencer
+	G_ParkourTestFrame();
 
 	//
 	// go through all allocated objects
