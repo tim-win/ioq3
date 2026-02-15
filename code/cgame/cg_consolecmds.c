@@ -582,4 +582,7 @@ void CG_InitConsoleCommands( void ) {
 	trap_AddCommand ("loaddefered");	// spelled wrong, but not changing for demo
 	trap_AddCommand ("titan");
 	trap_AddCommand ("titan_parts");
+	trap_AddCommand ("calltitan");
+	trap_AddCommand ("embark");
+	trap_AddCommand ("disembark");
 }

@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../game/bg_titan_parts.h"
 
 static void CG_DrawTitanPartDebug( void );
+static void CG_DrawTitanPodDebug( void );
 
 /*
 ======================
@@ -1101,6 +1102,7 @@ void CG_AddPacketEntities( void ) {
 	// draw titan part debug boxes if enabled
 	if ( cg_titanDebug.integer ) {
 		CG_DrawTitanPartDebug();
+		CG_DrawTitanPodDebug();
 	}
 }
 
@@ -1256,6 +1258,36 @@ static void CG_DrawTitanPartDebug( void ) {
 			CG_DrawDebugBox( es->pos.trBase, partMins, partMaxs,
 							 def->color[0], def->color[1], def->color[2], def->color[3] );
 		}
+	}
+}
+
+/*
+===============
+CG_DrawTitanPodDebug
+
+Draw a debug box for titan pod entities (ET_GENERAL with TITAN_POD_TAG).
+White translucent box.
+===============
+*/
+static void CG_DrawTitanPodDebug( void ) {
+	int				num;
+	entityState_t	*es;
+	vec3_t			mins, maxs, pos;
+
+	VectorSet( mins, -TITAN_POD_WIDTH, -TITAN_POD_WIDTH, 0 );
+	VectorSet( maxs, TITAN_POD_WIDTH, TITAN_POD_WIDTH, TITAN_POD_HEIGHT );
+
+	for ( num = 0; num < cg.snap->numEntities; num++ ) {
+		es = &cg.snap->entities[num];
+
+		if ( es->eType != ET_GENERAL || es->generic1 != TITAN_POD_TAG ) {
+			continue;
+		}
+
+		// Evaluate trajectory for moving pod
+		BG_EvaluateTrajectory( &es->pos, cg.time, pos );
+
+		CG_DrawDebugBox( pos, mins, maxs, 255, 255, 255, 80 );
 	}
 }
 

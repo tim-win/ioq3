@@ -1713,22 +1713,10 @@ void Cmd_Titan_f( gentity_t *ent ) {
 		return;
 	}
 
-	ent->client->titanMode = !ent->client->titanMode;
-
 	if ( ent->client->titanMode ) {
-		ent->health = TITAN_HEALTH;
-		ent->client->ps.stats[STAT_HEALTH] = TITAN_HEALTH;
-		ent->client->ps.stats[STAT_MAX_HEALTH] = TITAN_HEALTH;
-		G_SpawnTitanParts( ent );
-		trap_SendServerCommand( ent-g_entities, "print \"TITAN MODE ACTIVATED\n\"" );
+		G_ExitTitanMode( ent );
 	} else {
-		G_DespawnTitanParts( ent );
-		ent->client->ps.stats[STAT_MAX_HEALTH] = ent->client->pers.maxHealth;
-		if ( ent->health > ent->client->ps.stats[STAT_MAX_HEALTH] ) {
-			ent->health = ent->client->ps.stats[STAT_MAX_HEALTH];
-			ent->client->ps.stats[STAT_HEALTH] = ent->health;
-		}
-		trap_SendServerCommand( ent-g_entities, "print \"TITAN MODE DEACTIVATED\n\"" );
+		G_EnterTitanMode( ent );
 	}
 }
 
@@ -1824,6 +1812,12 @@ void ClientCommand( int clientNum ) {
 		Cmd_Titan_f (ent);
 	else if (Q_stricmp (cmd, "titan_parts") == 0)
 		Cmd_TitanParts_f (ent);
+	else if (Q_stricmp (cmd, "calltitan") == 0)
+		Cmd_CallTitan_f (ent);
+	else if (Q_stricmp (cmd, "embark") == 0)
+		Cmd_Embark_f (ent);
+	else if (Q_stricmp (cmd, "disembark") == 0)
+		Cmd_Disembark_f (ent);
 	else if (Q_stricmp (cmd, "teamtask") == 0)
 		Cmd_TeamTask_f (ent);
 	else if (Q_stricmp (cmd, "levelshot") == 0)

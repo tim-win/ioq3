@@ -330,6 +330,10 @@ struct gclient_s {
 	// titan animation state
 	float		titanCrouchFrac;	// 0.0 = standing, 1.0 = fully crouched (lerped)
 	float		titanWalkPhase;		// walk cycle phase accumulator (radians)
+
+	// titan pod / embark / disembark
+	gentity_t	*titanPod;			// active pod entity (NULL if none)
+	int			titanCooldownTime;	// level.time when cooldown expires (0 = ready)
 };
 
 
@@ -515,8 +519,15 @@ void G_InitTitanCvars( void );
 void G_SpawnTitanParts( gentity_t *ent );
 void G_DespawnTitanParts( gentity_t *ent );
 void G_UpdateTitanParts( gentity_t *ent );
+void G_EnterTitanMode( gentity_t *ent );
+void G_ExitTitanMode( gentity_t *ent );
+void G_TitanDestroyed( gentity_t *self, gentity_t *attacker );
+qboolean G_FindEjectPosition( gentity_t *ent, vec3_t result );
 void Cmd_TitanParts_f( gentity_t *ent );
 void Cmd_Titan_f( gentity_t *ent );
+void Cmd_CallTitan_f( gentity_t *ent );
+void Cmd_Embark_f( gentity_t *ent );
+void Cmd_Disembark_f( gentity_t *ent );
 
 #ifdef MISSIONPACK
 void TossClientPersistantPowerups( gentity_t *self );

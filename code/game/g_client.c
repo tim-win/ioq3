@@ -1279,6 +1279,12 @@ void ClientDisconnect( int clientNum ) {
 		return;
 	}
 
+	// clean up titan pod before disconnect
+	if ( ent->client->titanPod ) {
+		G_FreeEntity( ent->client->titanPod );
+		ent->client->titanPod = NULL;
+	}
+
 	// clean up titan parts before disconnect
 	if ( ent->client->titanMode ) {
 		G_DespawnTitanParts( ent );

@@ -68,6 +68,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define MAX_TITAN_PARTS			7
 #define TITAN_RENDER_OFFSET		225		// lift player model to upper chest / vent height
 
+// titan pod / embark / disembark
+#define TITAN_POD_SPEED			400		// descent speed (units/sec)
+#define TITAN_POD_DROP_HEIGHT	2000	// spawn height above player
+#define TITAN_POD_WIDTH			40		// pod bounding box half-width
+#define TITAN_POD_HEIGHT		120		// pod bounding box height
+#define TITAN_EMBARK_RANGE		128		// max distance to embark
+#define TITAN_COOLDOWN			30000	// ms after destruction before next calltitan
+#define TITAN_POD_TAG			42		// s.generic1 identifier for cgame
+#define TITAN_PILOT_HEALTH		100		// pilot health after disembark/eject
+
 //
 // config strings are a general means of communicating variable length strings
 // from the server to all connected clients.

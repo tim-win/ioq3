@@ -452,10 +452,10 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 	// check for a player that almost brought in cubes
 	CheckAlmostScored( self, attacker );
 
-	// clean up titan parts on death
+	// titan death: eject pilot alive instead of normal death
 	if ( self->client->titanMode ) {
-		G_DespawnTitanParts( self );
-		self->client->titanMode = qfalse;
+		G_TitanDestroyed( self, attacker );
+		return;
 	}
 
 	if (self->client && self->client->hook) {

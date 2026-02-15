@@ -289,6 +289,353 @@ void G_UpdateTitanParts( gentity_t *ent ) {
 }
 
 /*
+ * G_EnterTitanMode -- transition a player into titan mode.
+ * Sets health, spawns hitbox parts, notifies client.
+ */
+void G_EnterTitanMode( gentity_t *ent ) {
+	if ( !ent->client || ent->client->titanMode ) {
+		return;
+	}
+
+	ent->client->titanMode = qtrue;
+	ent->health = TITAN_HEALTH;
+	ent->client->ps.stats[STAT_HEALTH] = TITAN_HEALTH;
+	ent->client->ps.stats[STAT_MAX_HEALTH] = TITAN_HEALTH;
+	G_SpawnTitanParts( ent );
+	trap_SendServerCommand( ent - g_entities, "print \"TITAN MODE ACTIVATED\n\"" );
+}
+
+/*
+ * G_ExitTitanMode -- transition a player out of titan mode.
+ * Despawns hitbox parts, restores pilot health cap.
+ * Does NOT teleport or set position — caller handles that.
+ */
+void G_ExitTitanMode( gentity_t *ent ) {
+	if ( !ent->client || !ent->client->titanMode ) {
+		return;
+	}
+
+	G_DespawnTitanParts( ent );
+	ent->client->titanMode = qfalse;
+	ent->client->ps.stats[STAT_MAX_HEALTH] = ent->client->pers.maxHealth;
+	if ( ent->health > ent->client->ps.stats[STAT_MAX_HEALTH] ) {
+		ent->health = ent->client->ps.stats[STAT_MAX_HEALTH];
+		ent->client->ps.stats[STAT_HEALTH] = ent->health;
+	}
+	trap_SendServerCommand( ent - g_entities, "print \"TITAN MODE DEACTIVATED\n\"" );
+}
+
+/*
+ * G_FindEjectPosition -- find a clear position to eject a pilot to.
+ * Tries 4 cardinal directions (relative to yaw), then straight up,
+ * then falls back to titan origin. Returns qtrue if a good spot was found.
+ */
+qboolean G_FindEjectPosition( gentity_t *ent, vec3_t result ) {
+	float		yaw;
+	int			i;
+	float		dist;
+	vec3_t		start, end, mins, maxs;
+	trace_t		tr;
+
+	yaw = ent->client->ps.viewangles[YAW];
+	dist = TITAN_WIDTH + PLAYER_WIDTH + 16;
+
+	VectorSet( mins, -PLAYER_WIDTH, -PLAYER_WIDTH, MINS_Z );
+	VectorSet( maxs, PLAYER_WIDTH, PLAYER_WIDTH, DEFAULT_HEIGHT );
+
+	// Try 4 cardinal directions relative to player yaw
+	for ( i = 0; i < 4; i++ ) {
+		float angle = DEG2RAD( yaw + i * 90.0f );
+		float dx = cos( angle ) * dist;
+		float dy = sin( angle ) * dist;
+
+		VectorCopy( ent->r.currentOrigin, start );
+		start[0] += dx;
+		start[1] += dy;
+
+		// Trace from proposed position down to find floor
+		VectorCopy( start, end );
+		end[2] -= 128;
+
+		trap_Trace( &tr, start, mins, maxs, end, ent->s.number, MASK_PLAYERSOLID );
+
+		if ( tr.fraction < 1.0f && !tr.startsolid && !tr.allsolid ) {
+			// Found a floor — place player on it
+			VectorCopy( tr.endpos, result );
+			result[2] += 1;  // slight offset above ground
+			return qtrue;
+		}
+	}
+
+	// Try straight up
+	VectorCopy( ent->r.currentOrigin, start );
+	start[2] += TITAN_HEIGHT + 32;
+	VectorCopy( start, end );
+	end[2] -= 256;
+	trap_Trace( &tr, start, mins, maxs, end, ent->s.number, MASK_PLAYERSOLID );
+	if ( tr.fraction < 1.0f && !tr.startsolid && !tr.allsolid ) {
+		VectorCopy( tr.endpos, result );
+		result[2] += 1;
+		return qtrue;
+	}
+
+	// Fallback: titan origin (will telefrag but at least doesn't fail)
+	VectorCopy( ent->r.currentOrigin, result );
+	return qfalse;
+}
+
+/*
+ * TitanPodThink -- per-frame think for descending titan pod.
+ * Traces downward to detect ground. On landing: snap to ground,
+ * go stationary, become solid, notify owner.
+ */
+static void TitanPodThink( gentity_t *self ) {
+	trace_t		tr;
+	vec3_t		prevPos, currentPos;
+
+	self->nextthink = level.time + FRAMETIME;
+
+	// Previous position (where we were last frame)
+	VectorCopy( self->r.currentOrigin, prevPos );
+
+	// Evaluate current position based on trajectory
+	BG_EvaluateTrajectory( &self->s.pos, level.time, currentPos );
+
+	// Trace from previous position to current — detects ground passage
+	trap_Trace( &tr, prevPos, self->r.mins, self->r.maxs,
+				currentPos, self->s.number, MASK_SOLID );
+
+	if ( tr.fraction < 1.0f && !tr.allsolid ) {
+		// Hit ground — land at contact point
+		VectorCopy( tr.endpos, self->s.pos.trBase );
+		self->s.pos.trType = TR_STATIONARY;
+		self->s.pos.trTime = level.time;
+		VectorClear( self->s.pos.trDelta );
+
+		VectorCopy( tr.endpos, self->r.currentOrigin );
+		self->r.contents = CONTENTS_SOLID;
+		trap_LinkEntity( self );
+
+		// Notify owner
+		if ( self->parent && self->parent->client ) {
+			trap_SendServerCommand( self->parent - g_entities,
+				"print \"Titan ready. Use /embark to enter.\n\"" );
+		}
+
+		// Stop thinking — pod is landed
+		self->think = NULL;
+		self->nextthink = 0;
+		return;
+	}
+
+	// Update position
+	VectorCopy( currentPos, self->r.currentOrigin );
+	trap_LinkEntity( self );
+}
+
+/*
+ * Cmd_CallTitan_f -- spawn a titan pod entity that descends from the sky.
+ */
+void Cmd_CallTitan_f( gentity_t *ent ) {
+	gentity_t	*pod;
+	vec3_t		spawnPos;
+
+	if ( ent->client->ps.stats[STAT_HEALTH] <= 0 ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Can't call titan while dead\n\"" );
+		return;
+	}
+	if ( ent->client->titanMode ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Already in titan mode\n\"" );
+		return;
+	}
+	if ( ent->client->titanPod ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Titan pod already active\n\"" );
+		return;
+	}
+	if ( ent->client->titanCooldownTime > level.time ) {
+		trap_SendServerCommand( ent - g_entities,
+			va( "print \"Titan on cooldown: %d seconds\n\"",
+				( ent->client->titanCooldownTime - level.time ) / 1000 + 1 ) );
+		return;
+	}
+
+	// Spawn pod high above player
+	VectorCopy( ent->r.currentOrigin, spawnPos );
+	spawnPos[2] += TITAN_POD_DROP_HEIGHT;
+
+	pod = G_Spawn();
+	if ( !pod ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Failed to spawn titan pod\n\"" );
+		return;
+	}
+
+	pod->classname = "titan_pod";
+	pod->parent = ent;
+	pod->s.eType = ET_GENERAL;
+	pod->s.generic1 = TITAN_POD_TAG;
+
+	// Bounding box
+	VectorSet( pod->r.mins, -TITAN_POD_WIDTH, -TITAN_POD_WIDTH, 0 );
+	VectorSet( pod->r.maxs, TITAN_POD_WIDTH, TITAN_POD_WIDTH, TITAN_POD_HEIGHT );
+
+	// Trajectory: linear descent
+	VectorCopy( spawnPos, pod->s.pos.trBase );
+	pod->s.pos.trType = TR_LINEAR;
+	pod->s.pos.trTime = level.time;
+	VectorSet( pod->s.pos.trDelta, 0, 0, -TITAN_POD_SPEED );
+
+	VectorCopy( spawnPos, pod->r.currentOrigin );
+
+	// Not solid while descending — becomes solid on landing
+	pod->r.contents = 0;
+	pod->clipmask = MASK_SOLID;
+	pod->r.svFlags |= SVF_BROADCAST;
+
+	// Think function for ground detection
+	pod->think = TitanPodThink;
+	pod->nextthink = level.time + FRAMETIME;
+
+	trap_LinkEntity( pod );
+
+	ent->client->titanPod = pod;
+
+	trap_SendServerCommand( ent - g_entities, "print \"Titan inbound!\n\"" );
+}
+
+/*
+ * Cmd_Embark_f -- enter a landed titan pod.
+ */
+void Cmd_Embark_f( gentity_t *ent ) {
+	gentity_t	*pod;
+	vec3_t		diff;
+	float		dist;
+
+	if ( ent->client->ps.stats[STAT_HEALTH] <= 0 ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Can't embark while dead\n\"" );
+		return;
+	}
+	if ( ent->client->titanMode ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Already in titan mode\n\"" );
+		return;
+	}
+
+	pod = ent->client->titanPod;
+	if ( !pod || !pod->inuse ) {
+		trap_SendServerCommand( ent - g_entities, "print \"No titan pod available\n\"" );
+		ent->client->titanPod = NULL;
+		return;
+	}
+
+	// Check pod has landed (TR_STATIONARY means landed)
+	if ( pod->s.pos.trType != TR_STATIONARY ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Titan pod hasn't landed yet\n\"" );
+		return;
+	}
+
+	// Check distance
+	VectorSubtract( pod->r.currentOrigin, ent->r.currentOrigin, diff );
+	dist = VectorLength( diff );
+	if ( dist > TITAN_EMBARK_RANGE ) {
+		trap_SendServerCommand( ent - g_entities,
+			va( "print \"Too far from titan pod (%.0f / %d)\n\"", dist, TITAN_EMBARK_RANGE ) );
+		return;
+	}
+
+	// Teleport player to pod position
+	VectorCopy( pod->r.currentOrigin, ent->client->ps.origin );
+	VectorCopy( pod->r.currentOrigin, ent->r.currentOrigin );
+	VectorCopy( pod->r.currentOrigin, ent->s.pos.trBase );
+	ent->client->ps.eFlags ^= EF_TELEPORT_BIT;
+
+	// Free the pod
+	G_FreeEntity( pod );
+	ent->client->titanPod = NULL;
+
+	// Enter titan mode
+	G_EnterTitanMode( ent );
+}
+
+/*
+ * Cmd_Disembark_f -- exit titan mode as a pilot.
+ */
+void Cmd_Disembark_f( gentity_t *ent ) {
+	vec3_t	ejectPos;
+
+	if ( ent->client->ps.stats[STAT_HEALTH] <= 0 ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Can't disembark while dead\n\"" );
+		return;
+	}
+	if ( !ent->client->titanMode ) {
+		trap_SendServerCommand( ent - g_entities, "print \"Not in titan mode\n\"" );
+		return;
+	}
+
+	G_FindEjectPosition( ent, ejectPos );
+	G_ExitTitanMode( ent );
+
+	// Teleport to eject position
+	VectorCopy( ejectPos, ent->client->ps.origin );
+	VectorCopy( ejectPos, ent->r.currentOrigin );
+	VectorCopy( ejectPos, ent->s.pos.trBase );
+	ent->client->ps.eFlags ^= EF_TELEPORT_BIT;
+
+	// Set pilot health
+	ent->health = TITAN_PILOT_HEALTH;
+	ent->client->ps.stats[STAT_HEALTH] = TITAN_PILOT_HEALTH;
+
+	trap_LinkEntity( ent );
+}
+
+/*
+ * G_TitanDestroyed -- called when a titan reaches 0 HP.
+ * Awards kill credit, ejects pilot alive, starts cooldown.
+ */
+void G_TitanDestroyed( gentity_t *self, gentity_t *attacker ) {
+	vec3_t		ejectPos;
+	gentity_t	*obit;
+
+	// Award kill credit
+	if ( attacker && attacker->client && attacker != self ) {
+		AddScore( attacker, self->r.currentOrigin, 1 );
+	}
+
+	// Broadcast obituary: "X destroyed Y's titan"
+	obit = G_TempEntity( self->r.currentOrigin, EV_OBITUARY );
+	obit->s.eventParm = MOD_UNKNOWN;
+	obit->s.otherEntityNum = self->s.number;
+	obit->s.otherEntityNum2 = attacker ? attacker->s.number : ENTITYNUM_WORLD;
+	obit->r.svFlags = SVF_BROADCAST;
+
+	G_LogPrintf( "TitanDestroyed: %s killed %s's titan\n",
+		attacker && attacker->client ? attacker->client->pers.netname : "world",
+		self->client->pers.netname );
+
+	// Find eject position before exiting titan mode
+	G_FindEjectPosition( self, ejectPos );
+
+	// Exit titan mode (despawns parts, restores normal state)
+	G_ExitTitanMode( self );
+
+	// Teleport pilot to eject position
+	VectorCopy( ejectPos, self->client->ps.origin );
+	VectorCopy( ejectPos, self->r.currentOrigin );
+	VectorCopy( ejectPos, self->s.pos.trBase );
+	self->client->ps.eFlags ^= EF_TELEPORT_BIT;
+
+	// Set pilot health
+	self->health = TITAN_PILOT_HEALTH;
+	self->client->ps.stats[STAT_HEALTH] = TITAN_PILOT_HEALTH;
+
+	// Start cooldown
+	self->client->titanCooldownTime = level.time + TITAN_COOLDOWN;
+
+	trap_SendServerCommand( self - g_entities,
+		"print \"Titan destroyed! Pilot ejected.\n\"" );
+
+	trap_LinkEntity( self );
+}
+
+/*
  * Cmd_TitanParts_f -- debug command: print all child entity state.
  */
 void Cmd_TitanParts_f( gentity_t *ent ) {

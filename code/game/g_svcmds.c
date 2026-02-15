@@ -562,6 +562,85 @@ qboolean	ConsoleCommand( void ) {
 		return qtrue;
 	}
 
+	if (Q_stricmp (cmd, "forcecalltitan") == 0) {
+		char	arg[MAX_TOKEN_CHARS];
+		int		clientNum;
+		gentity_t *ent;
+
+		trap_Argv( 1, arg, sizeof( arg ) );
+		clientNum = atoi( arg );
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			G_Printf( "forcecalltitan: bad client number %d\n", clientNum );
+			return qtrue;
+		}
+		ent = &g_entities[clientNum];
+		if ( !ent->client || ent->client->pers.connected != CON_CONNECTED ) {
+			G_Printf( "forcecalltitan: client %d not connected\n", clientNum );
+			return qtrue;
+		}
+		Cmd_CallTitan_f( ent );
+		G_Printf( "forcecalltitan: called for client %d\n", clientNum );
+		return qtrue;
+	}
+
+	if (Q_stricmp (cmd, "forceembark") == 0) {
+		char	arg[MAX_TOKEN_CHARS];
+		int		clientNum;
+		gentity_t *ent;
+
+		trap_Argv( 1, arg, sizeof( arg ) );
+		clientNum = atoi( arg );
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			G_Printf( "forceembark: bad client number %d\n", clientNum );
+			return qtrue;
+		}
+		ent = &g_entities[clientNum];
+		if ( !ent->client || ent->client->pers.connected != CON_CONNECTED ) {
+			G_Printf( "forceembark: client %d not connected\n", clientNum );
+			return qtrue;
+		}
+		if ( ent->client->titanPod && ent->client->titanPod->inuse ) {
+			vec3_t diff;
+			VectorSubtract( ent->client->titanPod->r.currentOrigin, ent->r.currentOrigin, diff );
+			G_Printf( "forceembark: pod at (%.0f %.0f %.0f), player at (%.0f %.0f %.0f), dist=%.0f, trType=%d\n",
+				ent->client->titanPod->r.currentOrigin[0],
+				ent->client->titanPod->r.currentOrigin[1],
+				ent->client->titanPod->r.currentOrigin[2],
+				ent->r.currentOrigin[0],
+				ent->r.currentOrigin[1],
+				ent->r.currentOrigin[2],
+				VectorLength( diff ),
+				ent->client->titanPod->s.pos.trType );
+		} else {
+			G_Printf( "forceembark: no pod for client %d\n", clientNum );
+		}
+		Cmd_Embark_f( ent );
+		G_Printf( "forceembark: attempted for client %d, titan=%d\n", clientNum, ent->client->titanMode );
+		return qtrue;
+	}
+
+	if (Q_stricmp (cmd, "forcedisembark") == 0) {
+		char	arg[MAX_TOKEN_CHARS];
+		int		clientNum;
+		gentity_t *ent;
+
+		trap_Argv( 1, arg, sizeof( arg ) );
+		clientNum = atoi( arg );
+		if ( clientNum < 0 || clientNum >= level.maxclients ) {
+			G_Printf( "forcedisembark: bad client number %d\n", clientNum );
+			return qtrue;
+		}
+		ent = &g_entities[clientNum];
+		if ( !ent->client || ent->client->pers.connected != CON_CONNECTED ) {
+			G_Printf( "forcedisembark: client %d not connected\n", clientNum );
+			return qtrue;
+		}
+		Cmd_Disembark_f( ent );
+		G_Printf( "forcedisembark: client %d titan=%d health=%d\n",
+			clientNum, ent->client->titanMode, ent->health );
+		return qtrue;
+	}
+
 	if (Q_stricmp (cmd, "botlist") == 0) {
 		Svcmd_BotList_f();
 		return qtrue;
