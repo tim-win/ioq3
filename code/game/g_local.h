@@ -326,6 +326,10 @@ struct gclient_s {
 	// titan hitbox children
 	gentity_t	*titanParts[MAX_TITAN_PARTS];
 	int			numTitanParts;
+
+	// titan animation state
+	float		titanCrouchFrac;	// 0.0 = standing, 1.0 = fully crouched (lerped)
+	float		titanWalkPhase;		// walk cycle phase accumulator (radians)
 };
 
 

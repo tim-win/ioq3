@@ -1238,8 +1238,21 @@ static void CG_DrawTitanPartDebug( void ) {
 
 		{
 			vec3_t partMins, partMaxs;
+			float crouchFrac, crouchScale;
+
 			VectorCopy( def->mins, partMins );
 			VectorCopy( def->maxs, partMaxs );
+
+			// Apply crouch compression from server (es->frame = 0-100)
+			crouchFrac = es->frame / 100.0f;
+			if ( crouchFrac > 0.0f ) {
+				float standH = (float)( TITAN_HEIGHT - TITAN_MINS_Z );
+				float crouchH = (float)( TITAN_CROUCH_HEIGHT - TITAN_MINS_Z );
+				crouchScale = 1.0f - crouchFrac * ( 1.0f - crouchH / standH );
+				partMins[2] *= crouchScale;
+				partMaxs[2] *= crouchScale;
+			}
+
 			CG_DrawDebugBox( es->pos.trBase, partMins, partMaxs,
 							 def->color[0], def->color[1], def->color[2], def->color[3] );
 		}

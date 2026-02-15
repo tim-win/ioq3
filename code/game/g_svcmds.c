@@ -510,7 +510,23 @@ qboolean	ConsoleCommand( void ) {
 			G_Printf( "titan_parts: client %d not connected\n", clientNum );
 			return qtrue;
 		}
-		Cmd_TitanParts_f( ent );
+		{
+			gclient_t *cl = ent->client;
+			int p;
+			G_Printf( "titan_parts: client %d, %d parts, crouchFrac=%.2f walkPhase=%.2f\n",
+				clientNum, cl->numTitanParts, cl->titanCrouchFrac, cl->titanWalkPhase );
+			for ( p = 0; p < cl->numTitanParts; p++ ) {
+				gentity_t *ch = cl->titanParts[p];
+				if ( ch && ch->inuse ) {
+					G_Printf( "  [%d] ent#%d pos(%.0f %.0f %.0f) mins(%.0f %.0f %.0f) maxs(%.0f %.0f %.0f) frame=%d\n",
+						p, ch->s.number,
+						ch->r.currentOrigin[0], ch->r.currentOrigin[1], ch->r.currentOrigin[2],
+						ch->r.mins[0], ch->r.mins[1], ch->r.mins[2],
+						ch->r.maxs[0], ch->r.maxs[1], ch->r.maxs[2],
+						ch->s.frame );
+				}
+			}
+		}
 		return qtrue;
 	}
 

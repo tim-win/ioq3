@@ -87,6 +87,10 @@ void G_SpawnTitanParts( gentity_t *ent ) {
 	// Despawn any existing parts first (safety)
 	G_DespawnTitanParts( ent );
 
+	// Reset animation state
+	client->titanCrouchFrac = 0.0f;
+	client->titanWalkPhase = 0.0f;
+
 	yaw = ent->client->ps.viewangles[YAW];
 
 	for ( i = 0; i < NUM_TITAN_PARTS; i++ ) {
@@ -171,23 +175,73 @@ void G_DespawnTitanParts( gentity_t *ent ) {
 	}
 }
 
+// Crouch lerp speed: 0 to 1 in ~125ms
+#define TITAN_CROUCH_RATE		8.0f
+
+// Walk animation tuning
+#define TITAN_WALK_PHASE_RATE	0.008f	// radians per unit-speed per millisecond
+#define TITAN_WALK_LEG_AMP		40.0f	// max forward/back leg swing (units)
+#define TITAN_WALK_ARM_AMP		25.0f	// max forward/back arm counter-swing
+
+/*
+ * TitanCrouchScale -- compute Z scale factor from crouch fraction.
+ * 0.0 crouch fraction = 1.0 (full height), 1.0 = crouchRatio (~0.627)
+ */
+static float TitanCrouchScale( float crouchFrac ) {
+	float standH = (float)( TITAN_HEIGHT - TITAN_MINS_Z );	// 370
+	float crouchH = (float)( TITAN_CROUCH_HEIGHT - TITAN_MINS_Z );	// 232
+	float ratio = crouchH / standH;
+	return 1.0f - crouchFrac * ( 1.0f - ratio );
+}
+
 /*
  * G_UpdateTitanParts -- reposition all children to track parent.
  * Called every server frame for titan players.
+ * Handles crouch compression and walk animation.
  */
 void G_UpdateTitanParts( gentity_t *ent ) {
 	gclient_t			*client = ent->client;
 	int					i;
 	gentity_t			*child;
 	const titanPartDef_t *def;
-	vec3_t				worldOffset;
-	float				yaw;
+	vec3_t				adjOffset, worldOffset;
+	float				yaw, dt, crouchTarget, crouchScale;
+	float				speed, walkAmp, walkOffset;
 
 	if ( !client || client->numTitanParts == 0 ) {
 		return;
 	}
 
+	dt = ( level.time - level.previousTime ) * 0.001f;
+	if ( dt <= 0.0f ) {
+		dt = 0.05f;	// fallback to 20fps
+	}
+
 	yaw = client->ps.viewangles[YAW];
+
+	// --- Crouch lerp ---
+	crouchTarget = ( client->ps.pm_flags & PMF_DUCKED ) ? 1.0f : 0.0f;
+	if ( client->titanCrouchFrac < crouchTarget ) {
+		client->titanCrouchFrac += TITAN_CROUCH_RATE * dt;
+		if ( client->titanCrouchFrac > crouchTarget )
+			client->titanCrouchFrac = crouchTarget;
+	} else if ( client->titanCrouchFrac > crouchTarget ) {
+		client->titanCrouchFrac -= TITAN_CROUCH_RATE * dt;
+		if ( client->titanCrouchFrac < crouchTarget )
+			client->titanCrouchFrac = crouchTarget;
+	}
+	crouchScale = TitanCrouchScale( client->titanCrouchFrac );
+
+	// --- Walk animation phase ---
+	speed = sqrt( client->ps.velocity[0] * client->ps.velocity[0]
+				+ client->ps.velocity[1] * client->ps.velocity[1] );
+	client->titanWalkPhase += speed * dt * TITAN_WALK_PHASE_RATE;
+	if ( client->titanWalkPhase > 2.0f * M_PI ) {
+		client->titanWalkPhase -= 2.0f * M_PI;
+	}
+	// Amplitude normalized by default run speed, clamped to [0,1]
+	walkAmp = speed / 320.0f;
+	if ( walkAmp > 1.0f ) walkAmp = 1.0f;
 
 	for ( i = 0; i < client->numTitanParts; i++ ) {
 		child = client->titanParts[i];
@@ -197,14 +251,38 @@ void G_UpdateTitanParts( gentity_t *ent ) {
 
 		def = &titanParts[child->titanPartType];
 
-		// Rotate offset by parent yaw
-		RotatePointAroundYaw( def->offset, yaw, worldOffset );
+		// Start from table offset
+		VectorCopy( def->offset, adjOffset );
+
+		// Apply crouch Z compression: remap offset Z within the titan's height
+		adjOffset[2] = TITAN_MINS_Z + ( def->offset[2] - TITAN_MINS_Z ) * crouchScale;
+
+		// Apply walk animation (forward/back oscillation)
+		walkOffset = 0;
+		if ( def->type == TITAN_PART_LEG_L ) {
+			walkOffset = sin( client->titanWalkPhase ) * TITAN_WALK_LEG_AMP * walkAmp;
+		} else if ( def->type == TITAN_PART_LEG_R ) {
+			walkOffset = -sin( client->titanWalkPhase ) * TITAN_WALK_LEG_AMP * walkAmp;
+		} else if ( def->type == TITAN_PART_ARM_L ) {
+			walkOffset = -sin( client->titanWalkPhase ) * TITAN_WALK_ARM_AMP * walkAmp;
+		} else if ( def->type == TITAN_PART_ARM_R ) {
+			walkOffset = sin( client->titanWalkPhase ) * TITAN_WALK_ARM_AMP * walkAmp;
+		}
+		adjOffset[0] += walkOffset;
+
+		// Rotate and position in world space
+		RotatePointAroundYaw( adjOffset, yaw, worldOffset );
 		VectorAdd( ent->r.currentOrigin, worldOffset, child->r.currentOrigin );
 		VectorCopy( child->r.currentOrigin, child->s.pos.trBase );
 
-		// Update bbox (in case we ever support dynamic sizing)
+		// Apply crouch Z compression to bounding box
 		VectorCopy( def->mins, child->r.mins );
 		VectorCopy( def->maxs, child->r.maxs );
+		child->r.mins[2] *= crouchScale;
+		child->r.maxs[2] *= crouchScale;
+
+		// Communicate crouch fraction to client for debug rendering (0-100)
+		child->s.frame = (int)( client->titanCrouchFrac * 100.0f );
 
 		trap_LinkEntity( child );
 	}
