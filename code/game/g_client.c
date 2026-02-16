@@ -1169,15 +1169,25 @@ void ClientSpawn(gentity_t *ent) {
 
 	client->ps.clientNum = index;
 
-	client->ps.stats[STAT_WEAPONS] = ( 1 << WP_MACHINEGUN );
-	if ( g_gametype.integer == GT_TEAM ) {
-		client->ps.ammo[WP_MACHINEGUN] = 50;
-	} else {
-		client->ps.ammo[WP_MACHINEGUN] = 100;
-	}
-
-	client->ps.stats[STAT_WEAPONS] |= ( 1 << WP_GAUNTLET );
+	// CA-style loadout: all weapons, lots of ammo
+	client->ps.stats[STAT_WEAPONS] = ( 1 << WP_GAUNTLET )
+		| ( 1 << WP_MACHINEGUN )
+		| ( 1 << WP_SHOTGUN )
+		| ( 1 << WP_GRENADE_LAUNCHER )
+		| ( 1 << WP_ROCKET_LAUNCHER )
+		| ( 1 << WP_LIGHTNING )
+		| ( 1 << WP_RAILGUN )
+		| ( 1 << WP_PLASMAGUN )
+		| ( 1 << WP_BFG );
 	client->ps.ammo[WP_GAUNTLET] = -1;
+	client->ps.ammo[WP_MACHINEGUN] = 200;
+	client->ps.ammo[WP_SHOTGUN] = 50;
+	client->ps.ammo[WP_GRENADE_LAUNCHER] = 50;
+	client->ps.ammo[WP_ROCKET_LAUNCHER] = 50;
+	client->ps.ammo[WP_LIGHTNING] = 200;
+	client->ps.ammo[WP_RAILGUN] = 50;
+	client->ps.ammo[WP_PLASMAGUN] = 200;
+	client->ps.ammo[WP_BFG] = 50;
 	client->ps.ammo[WP_GRAPPLING_HOOK] = -1;
 
 	// health will count down towards max_health

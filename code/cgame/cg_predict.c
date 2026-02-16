@@ -26,8 +26,34 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // It also handles local physics interaction, like fragments bouncing off walls
 
 #include "cg_local.h"
+#include "../game/bg_local.h"
 
 static	pmove_t		cg_pmove;
+
+static float CG_CvarValue( const char *var_name ) {
+	char buf[128];
+	trap_Cvar_VariableStringBuffer( var_name, buf, sizeof( buf ) );
+	return atof( buf );
+}
+
+static void CG_SyncParkourCvars( void ) {
+	pm_wallrunMinSpeed = CG_CvarValue( "pm_wallrunMinSpeed" );
+	pm_wallrunDuration = CG_CvarValue( "pm_wallrunDuration" );
+	pm_wallrunGravity = CG_CvarValue( "pm_wallrunGravity" );
+	pm_wallrunPull = CG_CvarValue( "pm_wallrunPull" );
+	pm_wallrunUpForce = CG_CvarValue( "pm_wallrunUpForce" );
+	pm_wallrunDetectDist = CG_CvarValue( "pm_wallrunDetectDist" );
+	pm_walljumpForce = CG_CvarValue( "pm_walljumpForce" );
+	pm_walljumpUpForce = CG_CvarValue( "pm_walljumpUpForce" );
+	pm_doublejumpVelocity = CG_CvarValue( "pm_doublejumpVelocity" );
+	pm_slideMinSpeed = CG_CvarValue( "pm_slideMinSpeed" );
+	pm_slideFriction = CG_CvarValue( "pm_slideFriction" );
+	pm_ledgeGrabRange = CG_CvarValue( "pm_ledgeGrabRange" );
+	pm_ledgeGrabHeight = CG_CvarValue( "pm_ledgeGrabHeight" );
+	pm_ledgeClimbSpeed = CG_CvarValue( "pm_ledgeClimbSpeed" );
+	pm_vaultMaxHeight = CG_CvarValue( "pm_vaultMaxHeight" );
+	pm_vaultSpeed = CG_CvarValue( "pm_vaultSpeed" );
+}
 
 static	int			cg_numSolidEntities;
 static	centity_t	*cg_solidEntities[MAX_ENTITIES_IN_SNAPSHOT];
@@ -453,6 +479,9 @@ void CG_PredictPlayerState( void ) {
 		cg_pmove.tracemask &= ~CONTENTS_BODY;	// spectators can fly through bodies
 	}
 	cg_pmove.noFootsteps = ( cgs.dmflags & DF_NO_FOOTSTEPS ) > 0;
+
+	// sync parkour cvars from server for client prediction
+	CG_SyncParkourCvars();
 
 	// save the state before the pmove so we can detect transitions
 	oldPlayerState = cg.predictedPlayerState;

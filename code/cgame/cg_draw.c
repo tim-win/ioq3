@@ -997,6 +997,22 @@ static void CG_DrawUpperRight(stereoFrame_t stereoFrame)
 		CG_DrawAttacker( y );
 	}
 
+	// speed indicator — small text, lower right
+	{
+		float speed;
+		char *s;
+		int w;
+		vec3_t vel;
+
+		VectorCopy( cg.snap->ps.velocity, vel );
+		vel[2] = 0;	// horizontal speed only
+		speed = VectorLength( vel );
+
+		s = va( "%3.0f", speed );
+		w = CG_DrawStrlen( s ) * SMALLCHAR_WIDTH;
+		CG_DrawSmallStringColor( 635 - w, 475 - SMALLCHAR_HEIGHT,
+			s, speed > 300 ? colorGreen : colorWhite );
+	}
 }
 
 /*

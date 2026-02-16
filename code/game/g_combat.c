@@ -918,6 +918,11 @@ void G_Damage( gentity_t *targ, gentity_t *inflictor, gentity_t *attacker,
 		}
 	}
 
+	// no self-damage from splash (CA rules) — knockback already applied above
+	if ( targ == attacker && targ->client && ( dflags & DAMAGE_RADIUS ) ) {
+		return;
+	}
+
 	// check for completely getting out of the damage
 	if ( !(dflags & DAMAGE_NO_PROTECTION) ) {
 

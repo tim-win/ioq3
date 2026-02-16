@@ -55,8 +55,8 @@ float	pm_wallrunDetectDist = 32.0f;
 float	pm_walljumpForce = 300.0f;
 float	pm_walljumpUpForce = 270.0f;
 float	pm_doublejumpVelocity = 220.0f;
-float	pm_slideMinSpeed = 400.0f;
-float	pm_slideFriction = 0.5f;
+float	pm_slideMinSpeed = 20.0f;
+float	pm_slideFriction = 0.1f;
 float	pm_ledgeGrabRange = 32.0f;
 float	pm_ledgeGrabHeight = 48.0f;
 float	pm_ledgeClimbSpeed = 300.0f;
@@ -791,9 +791,11 @@ static void PM_WalkMove( void ) {
 	wishspeed = VectorNormalize(wishdir);
 	wishspeed *= scale;
 
-	// clamp the speed lower if ducking
+	// clamp the speed lower if ducking (but not during crouch slide)
 	if ( pm->ps->pm_flags & PMF_DUCKED ) {
-		if ( wishspeed > pm->ps->speed * pm_duckScale ) {
+		float speed = VectorLength( pm->ps->velocity );
+		qboolean sliding = !( pm->ps->pm_flags & PMF_TITAN ) && speed > pm_slideMinSpeed;
+		if ( !sliding && wishspeed > pm->ps->speed * pm_duckScale ) {
 			wishspeed = pm->ps->speed * pm_duckScale;
 		}
 	}
@@ -1959,6 +1961,22 @@ static void PM_CheckWallRun( void ) {
 		// project velocity onto wall plane (maintain speed along wall)
 		PM_ClipVelocity( pm->ps->velocity, trace.plane.normal, pm->ps->velocity, OVERCLIP );
 
+		// build speed while wall running (like Titanfall)
+		{
+			vec3_t flatVel;
+			float flatSpeed;
+			VectorCopy( pm->ps->velocity, flatVel );
+			flatVel[2] = 0;
+			flatSpeed = VectorLength( flatVel );
+			if ( flatSpeed > 1 && flatSpeed < pm->ps->speed * 2.0f ) {
+				// accelerate along current direction, 100 u/s^2
+				float boost = 100.0f * pml.frametime;
+				VectorNormalize( flatVel );
+				pm->ps->velocity[0] += flatVel[0] * boost;
+				pm->ps->velocity[1] += flatVel[1] * boost;
+			}
+		}
+
 		// apply reduced gravity
 		pm->ps->velocity[2] -= pm_wallrunGravity * pml.frametime;
 
@@ -1972,16 +1990,35 @@ static void PM_CheckWallRun( void ) {
 		// check for wall jump
 		if ( pm->cmd.upmove >= 10 && !( pm->ps->pm_flags & PMF_JUMP_HELD ) ) {
 			vec3_t kickDir;
+			vec3_t flatVel;
+			float currentSpeed, kickForce, upForce;
 
 			pm->ps->pm_flags |= PMF_JUMP_HELD;
 			pm->ps->pm_flags &= ~PMF_WALLRUN;
 			pm->ps->generic1 = -300;	// 300ms cooldown before can wall run again
 
+			// scale kick force with current speed (rewards fast wall runners)
+			VectorCopy( pm->ps->velocity, flatVel );
+			flatVel[2] = 0;
+			currentSpeed = VectorLength( flatVel );
+
+			// perpendicular: base 200 minimum, scales up to 0.6x current speed
+			kickForce = currentSpeed * 0.6f;
+			if ( kickForce < pm_walljumpForce * 0.67f ) {
+				kickForce = pm_walljumpForce * 0.67f;	// floor at ~200
+			}
+
+			// upward: base 200 minimum, scales with speed
+			upForce = currentSpeed * 0.5f;
+			if ( upForce < pm_walljumpUpForce * 0.74f ) {
+				upForce = pm_walljumpUpForce * 0.74f;	// floor at ~200
+			}
+
 			// kick off wall: perpendicular to wall + upward
-			VectorScale( trace.plane.normal, pm_walljumpForce, kickDir );
+			VectorScale( trace.plane.normal, kickForce, kickDir );
 			pm->ps->velocity[0] += kickDir[0];
 			pm->ps->velocity[1] += kickDir[1];
-			pm->ps->velocity[2] = pm_walljumpUpForce;
+			pm->ps->velocity[2] = upForce;
 
 			PM_AddEvent( EV_JUMP );
 			PM_ForceLegsAnim( LEGS_JUMP );
@@ -1991,8 +2028,8 @@ static void PM_CheckWallRun( void ) {
 			pm->ps->pm_flags &= ~PMF_DOUBLEJUMP;
 
 			if ( pm_parkourDebug ) {
-				Com_Printf( "PARKOUR: Wall JUMP (force=%.0f, up=%.0f)\n",
-					pm_walljumpForce, pm_walljumpUpForce );
+				Com_Printf( "PARKOUR: Wall JUMP (speed=%.0f, kick=%.0f, up=%.0f)\n",
+					currentSpeed, kickForce, upForce );
 			}
 			return;
 		}
@@ -2067,6 +2104,7 @@ static void PM_CheckWallRun( void ) {
 
 	// initiate wall run
 	pm->ps->pm_flags |= PMF_WALLRUN;
+	pm->ps->pm_flags |= PMF_JUMP_HELD;	// require fresh jump press for wall jump
 	pm->ps->generic1 = (int)pm_wallrunDuration;
 
 	// initial upward nudge
@@ -2126,7 +2164,8 @@ static void PM_WallRunMove( void ) {
 	// wall running gets decent air control (like ground accel)
 	PM_Accelerate( wishdir, wishspeed, pm_accelerate * 0.5f );
 
-	PM_StepSlideMove( qtrue );
+	// gravity=qfalse because reduced gravity is already applied in PM_CheckWallRun
+	PM_StepSlideMove( qfalse );
 }
 
 /*
